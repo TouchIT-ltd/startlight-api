@@ -1,0 +1,11 @@
+services:
+  starligth-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: starligth-api
+    env_file:
+      - .env
+    restart: always
+    ports: 
+      - "3000:3000"
