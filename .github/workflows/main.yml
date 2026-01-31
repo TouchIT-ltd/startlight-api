@@ -25,5 +25,6 @@ jobs:
             git config --global --add safe.directory /home/${{ secrets.SERVER_USER }}/startlight-api &&
             git pull origin main &&
             sudo docker compose up -d --build &&
+            sleep 5 &&
             sudo docker compose logs --tail=50
           "
