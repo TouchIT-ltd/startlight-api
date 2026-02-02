@@ -1,4 +1,12 @@
-import { IsString, IsOptional, IsNumber, IsIn, Min, IsArray, ArrayMaxSize } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsIn,
+  Min,
+  IsArray,
+  ArrayMaxSize,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -21,7 +29,11 @@ export class CreateApartmentDto {
   @Min(0)
   price!: number;
 
-  @ApiProperty({ example: 'mo', description: 'Price unit', enum: ['mo', 'year'] })
+  @ApiProperty({
+    example: 'mo',
+    description: 'Price unit',
+    enum: ['mo', 'year'],
+  })
   @IsString()
   @IsIn(['mo', 'year'])
   priceUnit!: 'mo' | 'year';
@@ -70,7 +82,11 @@ export class CreateApartmentDto {
   @Min(1)
   minTerm!: number;
 
-  @ApiProperty({ example: 'month', description: 'Minimum term unit', enum: ['month', 'year'] })
+  @ApiProperty({
+    example: 'month',
+    description: 'Minimum term unit',
+    enum: ['month', 'year'],
+  })
   @IsString()
   @IsIn(['month', 'year'])
   minTermUnit!: 'month' | 'year';
@@ -83,7 +99,10 @@ export class CreateApartmentDto {
       try {
         return JSON.parse(value);
       } catch {
-        return value.split(',').map(s => s.trim()).filter(Boolean);
+        return value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
       }
     }
     return Array.isArray(value) ? value : [];
@@ -92,7 +111,11 @@ export class CreateApartmentDto {
   @IsString({ each: true })
   amenities?: string[];
 
-  @ApiPropertyOptional({ example: [], description: 'Array of image URLs (max 5)', type: [String] })
+  @ApiPropertyOptional({
+    example: [],
+    description: 'Array of image URLs (max 5)',
+    type: [String],
+  })
   @IsOptional()
   @Transform(({ value }) => {
     if (!value) return [];
@@ -100,7 +123,10 @@ export class CreateApartmentDto {
       try {
         return JSON.parse(value);
       } catch {
-        return value.split(',').map(s => s.trim()).filter(Boolean);
+        return value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
       }
     }
     return Array.isArray(value) ? value : [];

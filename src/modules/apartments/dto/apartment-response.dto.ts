@@ -40,7 +40,13 @@ export class ApartmentResponseDto {
   @ApiPropertyOptional({ example: ['WiFi', 'Parking', 'Pool'] })
   amenities?: string[];
 
-  @ApiPropertyOptional({ example: ['https://res.cloudinary.com/.../image1.jpg', 'https://res.cloudinary.com/.../image2.jpg'], maxItems: 5 })
+  @ApiPropertyOptional({
+    example: [
+      'https://res.cloudinary.com/.../image1.jpg',
+      'https://res.cloudinary.com/.../image2.jpg',
+    ],
+    maxItems: 5,
+  })
   images?: string[];
 
   @ApiProperty({ type: String })

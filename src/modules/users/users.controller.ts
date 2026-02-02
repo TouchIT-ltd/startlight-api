@@ -25,18 +25,23 @@ export class UsersController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @UseInterceptors(FileInterceptor('ninSlip', {
-    storage: memoryStorage(),
-    fileFilter: (req, file, callback) => {
-      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
-        return callback(new Error('Only image files (jpg, jpeg, png, webp) are allowed!'), false);
-      }
-      callback(null, true);
-    },
-    limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB limit
-    },
-  }))
+  @UseInterceptors(
+    FileInterceptor('ninSlip', {
+      storage: memoryStorage(),
+      fileFilter: (req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return callback(
+            new Error('Only image files (jpg, jpeg, png, webp) are allowed!'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+      },
+    }),
+  )
   async create(
     @Body() createUserDto: CreateUserDto,
     @UploadedFile() file?: any,

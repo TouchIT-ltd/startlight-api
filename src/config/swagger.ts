@@ -4,7 +4,7 @@ import { ConfigService } from '@nestjs/config';
 
 export function setupSwagger(app: INestApplication): void {
   const configService = app.get(ConfigService);
-  
+
   const config = new DocumentBuilder()
     .setTitle(configService.get('config.app.name') as string)
     .setDescription('API Documentation')

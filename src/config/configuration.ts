@@ -20,10 +20,14 @@ export default registerAs('config', () => ({
   },
   throttler: {
     ttl: process.env.THROTTLE_TTL ? parseInt(process.env.THROTTLE_TTL, 10) : 60,
-    limit: process.env.THROTTLE_LIMIT ? parseInt(process.env.THROTTLE_LIMIT, 10) : 100,
+    limit: process.env.THROTTLE_LIMIT
+      ? parseInt(process.env.THROTTLE_LIMIT, 10)
+      : 100,
   },
   upload: {
-    maxFileSize: process.env.MAX_FILE_SIZE ? parseInt(process.env.MAX_FILE_SIZE, 10) : 5242880,
+    maxFileSize: process.env.MAX_FILE_SIZE
+      ? parseInt(process.env.MAX_FILE_SIZE, 10)
+      : 5242880,
     uploadPath: process.env.UPLOAD_PATH || './uploads',
   },
   email: {

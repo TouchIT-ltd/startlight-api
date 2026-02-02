@@ -6,13 +6,16 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
-import {
-  UseInterceptors,
-  UploadedFile,
-} from '@nestjs/common';
+import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { ApiTags, ApiConsumes, ApiBody, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiConsumes,
+  ApiBody,
+  ApiOperation,
+  ApiResponse,
+} from '@nestjs/swagger';
 
 @Controller('auth')
 @ApiTags('auth')
@@ -20,26 +23,37 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @UseInterceptors(FileInterceptor('ninSlip', {
-    storage: memoryStorage(),
-    fileFilter: (req, file, callback) => {
-      // Allow common image types and PDFs for NIN slips
-      if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|pdf)$/)) {
-        return callback(new Error('Only image files (jpg, jpeg, png, webp) or PDF are allowed!'), false);
-      }
-      callback(null, true);
-    },
-    limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB limit
-    },
-  }))
+  @UseInterceptors(
+    FileInterceptor('ninSlip', {
+      storage: memoryStorage(),
+      fileFilter: (req, file, callback) => {
+        // Allow common image types and PDFs for NIN slips
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|pdf)$/)) {
+          return callback(
+            new Error(
+              'Only image files (jpg, jpeg, png, webp) or PDF are allowed!',
+            ),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
     schema: {
       type: 'object',
       properties: {
         fullname: { type: 'string', example: 'John Doe' },
-        email: { type: 'string', format: 'email', example: 'john.doe@example.com' },
+        email: {
+          type: 'string',
+          format: 'email',
+          example: 'john.doe@example.com',
+        },
         password: { type: 'string', example: 'Password123!' },
         phoneNumber: { type: 'string', example: '+1234567890' },
         role: { type: 'string', example: 'tenant' },
@@ -80,7 +94,9 @@ export class AuthController {
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
-  async resetPassword(@Body() resetPasswordDto: ResetPasswordDto): Promise<ResetPasswordResponseDto> {
+  async resetPassword(
+    @Body() resetPasswordDto: ResetPasswordDto,
+  ): Promise<ResetPasswordResponseDto> {
     return this.authService.resetPassword(resetPasswordDto);
   }
 }

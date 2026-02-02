@@ -54,6 +54,11 @@ import { CloudinaryService } from './services/cloudinary.service';
       useClass: ThrottlerGuard,
     },
   ],
-  exports: [MongoDatabaseService, EmailService, CloudinaryService, MongooseModule],
+  exports: [
+    MongoDatabaseService,
+    EmailService,
+    CloudinaryService,
+    MongooseModule,
+  ],
 })
 export class SharedModule {}

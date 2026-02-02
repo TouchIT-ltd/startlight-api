@@ -15,7 +15,7 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   app.use(compression());
-  
+
   // CORS
   app.enableCors({
     origin: configService.get('config.app.frontendUrl'),
@@ -42,8 +42,10 @@ async function bootstrap() {
 
   const port = configService.get('config.app.port');
   await app.listen(port);
-  
-  console.log(`🚀 Application is running on: http://localhost:${port}/${configService.get('config.app.apiPrefix')}`);
+
+  console.log(
+    `🚀 Application is running on: http://localhost:${port}/${configService.get('config.app.apiPrefix')}`,
+  );
   console.log(`📚 Swagger documentation: http://localhost:${port}/api-docs`);
 }
 bootstrap();

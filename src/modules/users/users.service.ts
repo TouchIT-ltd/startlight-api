@@ -1,4 +1,8 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { CloudinaryService } from '../../shared/services/cloudinary.service';
@@ -24,7 +28,7 @@ export class UsersService {
         phoneNumber: '+1234567890',
         role: 'owner',
       });
-      
+
       await this.create({
         fullname: 'John Doe',
         email: 'john@example.com',
@@ -50,7 +54,16 @@ export class UsersService {
 
   async create(userData: any, file?: any): Promise<any> {
     console.log('Creating user with data:', userData);
-    console.log('File received:', file ? { originalname: file.originalname, size: file.size, mimetype: file.mimetype } : 'No file');
+    console.log(
+      'File received:',
+      file
+        ? {
+            originalname: file.originalname,
+            size: file.size,
+            mimetype: file.mimetype,
+          }
+        : 'No file',
+    );
 
     const existingUser = await this.mongoDb.findOneBy(this.collectionName, {
       email: userData.email,
@@ -66,14 +79,26 @@ export class UsersService {
     let ninSlipUrl = userData.ninSlip;
     if (file) {
       // Validate file type (allow images and PDFs)
-      const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'application/pdf'];
+      const allowedMimes = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+        'application/pdf',
+      ];
       if (!allowedMimes.includes(file.mimetype)) {
-        throw new ConflictException('Only image files (jpg, jpeg, png, webp) or PDF are allowed');
+        throw new ConflictException(
+          'Only image files (jpg, jpeg, png, webp) or PDF are allowed',
+        );
       }
 
       console.log('Uploading to Cloudinary...');
       // Upload to Cloudinary (pass mimetype)
-      ninSlipUrl = await this.cloudinaryService.uploadImage(file.buffer, file.originalname, file.mimetype);
+      ninSlipUrl = await this.cloudinaryService.uploadImage(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
       console.log('Cloudinary result:', ninSlipUrl);
       if (!ninSlipUrl) {
         throw new ConflictException('Failed to upload file');
@@ -89,7 +114,7 @@ export class UsersService {
       role: userData.role,
       isActive: true,
     });
-    
+
     const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;
   }
@@ -101,7 +126,7 @@ export class UsersService {
       this.mongoDb.count(this.collectionName),
     ]);
 
-    const usersWithoutPasswords = users.map(user => {
+    const usersWithoutPasswords = users.map((user) => {
       const { password, ...userWithoutPassword } = user;
       return userWithoutPassword;
     });
@@ -116,7 +141,7 @@ export class UsersService {
 
   async findOne(id: string): Promise<any> {
     const user = await this.mongoDb.findOne(this.collectionName, id);
-    
+
     if (!user) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }
@@ -149,7 +174,7 @@ export class UsersService {
 
   async remove(id: string): Promise<{ message: string }> {
     const deleted = await this.mongoDb.delete(this.collectionName, id);
-    
+
     if (!deleted) {
       throw new NotFoundException(`User with ID ${id} not found`);
     }

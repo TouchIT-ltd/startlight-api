@@ -29,7 +29,7 @@ export class MockDatabaseService {
   async create(collectionName: string, data: any): Promise<any> {
     const collection = this.ensureCollection(collectionName);
     const id = this.generateId();
-    
+
     const entity = {
       ...data,
       id,
@@ -40,7 +40,7 @@ export class MockDatabaseService {
 
     collection.push(entity);
     this.logger.debug(`Created in ${collectionName}: ${id}`);
-    
+
     return entity;
   }
 
@@ -55,7 +55,7 @@ export class MockDatabaseService {
 
     // Apply filtering
     if (Object.keys(filter).length > 0) {
-      results = results.filter(item => {
+      results = results.filter((item) => {
         return Object.entries(filter).every(([key, value]) => {
           return item[key] === value;
         });
@@ -84,21 +84,29 @@ export class MockDatabaseService {
   // Find one by ID
   async findOne(collectionName: string, id: string): Promise<any | null> {
     const collection = this.ensureCollection(collectionName);
-    return collection.find(item => item.id === id || item._id === id) || null;
+    return collection.find((item) => item.id === id || item._id === id) || null;
   }
 
   // Find by field
   async findOneBy(collectionName: string, query: any): Promise<any | null> {
     const collection = this.ensureCollection(collectionName);
-    return collection.find(item =>
-      Object.entries(query).every(([key, value]) => item[key] === value),
-    ) || null;
+    return (
+      collection.find((item) =>
+        Object.entries(query).every(([key, value]) => item[key] === value),
+      ) || null
+    );
   }
 
   // Update
-  async update(collectionName: string, id: string, data: any): Promise<any | null> {
+  async update(
+    collectionName: string,
+    id: string,
+    data: any,
+  ): Promise<any | null> {
     const collection = this.ensureCollection(collectionName);
-    const index = collection.findIndex(item => item.id === id || item._id === id);
+    const index = collection.findIndex(
+      (item) => item.id === id || item._id === id,
+    );
 
     if (index === -1) return null;
 
@@ -110,7 +118,7 @@ export class MockDatabaseService {
 
     collection[index] = updatedEntity;
     this.logger.debug(`Updated in ${collectionName}: ${id}`);
-    
+
     return updatedEntity;
   }
 
@@ -118,10 +126,12 @@ export class MockDatabaseService {
   async delete(collectionName: string, id: string): Promise<boolean> {
     const collection = this.ensureCollection(collectionName);
     const initialLength = collection.length;
-    
-    const filtered = collection.filter(item => item.id !== id && item._id !== id);
+
+    const filtered = collection.filter(
+      (item) => item.id !== id && item._id !== id,
+    );
     this.collections.set(collectionName, filtered);
-    
+
     return initialLength > filtered.length;
   }
 
@@ -131,7 +141,7 @@ export class MockDatabaseService {
     let results = collection;
 
     if (Object.keys(filter).length > 0) {
-      results = results.filter(item =>
+      results = results.filter((item) =>
         Object.entries(filter).every(([key, value]) => item[key] === value),
       );
     }

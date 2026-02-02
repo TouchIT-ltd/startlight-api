@@ -7,11 +7,17 @@ export class CreateUserDto {
   @MinLength(2)
   fullname!: string;
 
-  @ApiProperty({ example: 'john.doe@example.com', description: 'Email address' })
+  @ApiProperty({
+    example: 'john.doe@example.com',
+    description: 'Email address',
+  })
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ example: 'Password123!', description: 'Password (min 6 characters)' })
+  @ApiProperty({
+    example: 'Password123!',
+    description: 'Password (min 6 characters)',
+  })
   @IsString()
   @MinLength(6)
   password!: string;
@@ -20,7 +26,11 @@ export class CreateUserDto {
   @IsString()
   phoneNumber!: string;
 
-  @ApiProperty({ example: 'tenant', description: 'Role of the user', enum: ['tenant', 'owner'] })
+  @ApiProperty({
+    example: 'tenant',
+    description: 'Role of the user',
+    enum: ['tenant', 'owner'],
+  })
   @IsIn(['tenant', 'owner'])
   role!: 'tenant' | 'owner';
 

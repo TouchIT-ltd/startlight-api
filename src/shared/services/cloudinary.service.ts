@@ -12,9 +12,15 @@ export class CloudinaryService {
     this.logger.log('✅ Cloudinary service initialized (unsigned upload)');
   }
 
-  async uploadImage(fileBuffer: Buffer, fileName: string, mimeType?: string): Promise<string | null> {
+  async uploadImage(
+    fileBuffer: Buffer,
+    fileName: string,
+    mimeType?: string,
+  ): Promise<string | null> {
     try {
-      this.logger.log(`Starting upload for file: ${fileName}, size: ${fileBuffer.length}, mimeType: ${mimeType}`);
+      this.logger.log(
+        `Starting upload for file: ${fileName}, size: ${fileBuffer.length}, mimeType: ${mimeType}`,
+      );
 
       const form = new FormData();
       form.append('file', fileBuffer, {
@@ -31,10 +37,12 @@ export class CloudinaryService {
         },
       );
 
-      const data = await response.json() as any;
+      const data = (await response.json()) as any;
 
       if (!response.ok) {
-        throw new Error(`Cloudinary upload failed: ${data.error?.message || data}`);
+        throw new Error(
+          `Cloudinary upload failed: ${data.error?.message || data}`,
+        );
       }
 
       this.logger.log(`Upload successful: ${data.secure_url}`);

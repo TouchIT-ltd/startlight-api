@@ -10,7 +10,7 @@ export class EmailService {
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('MAILJET_API_KEY');
     const secretKey = this.configService.get<string>('MAILJET_SECRET_KEY');
-    
+
     if (apiKey && secretKey) {
       this.mailjet = new Client({
         apiKey,
@@ -18,7 +18,9 @@ export class EmailService {
       });
       this.logger.log('✅ Mailjet email service initialized');
     } else {
-      this.logger.warn('⚠️ Mailjet credentials not configured. Email service in development mode.');
+      this.logger.warn(
+        '⚠️ Mailjet credentials not configured. Email service in development mode.',
+      );
       // Create dummy client for dev
       this.mailjet = new Client({
         apiKey: 'dummy',
@@ -65,13 +67,17 @@ export class EmailService {
 
     try {
       this.logger.debug(`Sending OTP email to ${to}`);
-      
+
       const body: SendEmailV3_1.Body = {
         Messages: [
           {
             From: {
-              Email: this.configService.get<string>('EMAIL_FROM') || 'noreply@touchit.click',
-              Name: this.configService.get<string>('EMAIL_FROM_NAME') || 'Touch I.T - Auth',
+              Email:
+                this.configService.get<string>('EMAIL_FROM') ||
+                'noreply@touchit.click',
+              Name:
+                this.configService.get<string>('EMAIL_FROM_NAME') ||
+                'Touch I.T - Auth',
             },
             To: [{ Email: to }],
             Subject: subject,
@@ -81,30 +87,42 @@ export class EmailService {
       };
 
       await this.mailjet.post('send', { version: 'v3.1' }).request(body);
-      
+
       this.logger.log(`✅ OTP email sent successfully to ${to}`);
       return true;
     } catch (error: any) {
-      this.logger.error(`❌ Failed to send OTP email to ${to}: ${error.message}`);
+      this.logger.error(
+        `❌ Failed to send OTP email to ${to}: ${error.message}`,
+      );
       return false;
     }
   }
 
-  async sendEmail(to: string, subject: string, htmlBody: string): Promise<boolean> {
+  async sendEmail(
+    to: string,
+    subject: string,
+    htmlBody: string,
+  ): Promise<boolean> {
     if (!this.mailjet) {
-      this.logger.warn(`📧 [FALLBACK] No Mailjet - Email to ${to} - Subject: ${subject}`);
+      this.logger.warn(
+        `📧 [FALLBACK] No Mailjet - Email to ${to} - Subject: ${subject}`,
+      );
       return true;
     }
 
     try {
       this.logger.debug(`Sending email to ${to} with subject "${subject}"`);
-      
+
       const body: SendEmailV3_1.Body = {
         Messages: [
           {
             From: {
-              Email: this.configService.get<string>('EMAIL_FROM') ?? 'noreply@touchit.click',
-              Name: this.configService.get<string>('EMAIL_FROM_NAME') ?? 'Touch I.T - Auth',
+              Email:
+                this.configService.get<string>('EMAIL_FROM') ??
+                'noreply@touchit.click',
+              Name:
+                this.configService.get<string>('EMAIL_FROM_NAME') ??
+                'Touch I.T - Auth',
             },
             To: [{ Email: to }],
             Subject: subject,
@@ -114,7 +132,7 @@ export class EmailService {
       };
 
       await this.mailjet.post('send', { version: 'v3.1' }).request(body);
-      
+
       this.logger.log(`✅ Email sent successfully to ${to}`);
       return true;
     } catch (error: any) {

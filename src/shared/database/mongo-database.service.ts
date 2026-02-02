@@ -28,17 +28,24 @@ export class MongoDatabaseService implements OnModuleInit {
   private getModel(collectionName: string): Model<any> {
     if (!this.models.has(collectionName)) {
       // Create a dynamic schema
-      const schema = new Schema({
-        id: { type: String, required: true, unique: true },
-        createdAt: { type: Date, default: Date.now },
-        updatedAt: { type: Date, default: Date.now }
-      }, {
-        collection: collectionName,
-        timestamps: true,
-        strict: false // Allow additional fields
-      });
+      const schema = new Schema(
+        {
+          id: { type: String, required: true, unique: true },
+          createdAt: { type: Date, default: Date.now },
+          updatedAt: { type: Date, default: Date.now },
+        },
+        {
+          collection: collectionName,
+          timestamps: true,
+          strict: false, // Allow additional fields
+        },
+      );
 
-      const model = this.connection.model(collectionName, schema, collectionName);
+      const model = this.connection.model(
+        collectionName,
+        schema,
+        collectionName,
+      );
       this.models.set(collectionName, model);
     }
 
@@ -89,7 +96,7 @@ export class MongoDatabaseService implements OnModuleInit {
       }
 
       const results = await query.exec();
-      return results.map(doc => doc.toObject());
+      return results.map((doc) => doc.toObject());
     } catch (error) {
       this.logger.error(`Error finding all in ${collectionName}:`, error);
       throw error;
@@ -121,13 +128,17 @@ export class MongoDatabaseService implements OnModuleInit {
   }
 
   // Update
-  async update(collectionName: string, id: string, data: any): Promise<any | null> {
+  async update(
+    collectionName: string,
+    id: string,
+    data: any,
+  ): Promise<any | null> {
     try {
       const Model = this.getModel(collectionName);
       const updatedEntity = await Model.findOneAndUpdate(
         { id },
         { ...data, updatedAt: new Date() },
-        { new: true }
+        { new: true },
       ).exec();
 
       if (updatedEntity) {

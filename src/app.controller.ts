@@ -4,18 +4,18 @@ import { EmailService } from './shared/email/email.service';
 
 @Controller()
 export class AppController {
-
-  constructor(private readonly appService: AppService, private readonly emailService: EmailService) {}
+  constructor(
+    private readonly appService: AppService,
+    private readonly emailService: EmailService,
+  ) {}
 
   @Get()
-  async  getHello(): Promise<string> {
-
+  async getHello(): Promise<string> {
     const res = await this.emailService.sendEmail(
       'devlord1250@gmail.com',
       'Report Request',
       '<h1>Helle</h1>',
     );
-
 
     return this.appService.getHello();
   }
