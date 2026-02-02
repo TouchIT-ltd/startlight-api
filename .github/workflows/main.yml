@@ -2,7 +2,8 @@ name: Deployment
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
 
 jobs:
   deploy:
@@ -11,20 +12,29 @@ jobs:
     steps:
       - name: Deploy via SSH
         run: |
+          set -e
+
+          # Setup SSH
           mkdir -p ~/.ssh
           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-      
-          # Add GitHub and server to known hosts
-          ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
+
+          # Trust ONLY the server (not GitHub)
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-      
+
           # SSH into server and deploy
-          ssh -o StrictHostKeyChecking=no -i ~/.ssh/id_ed25519 ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-            cd /home/${{ secrets.SERVER_USER }}/startlight-api &&
-            git config --global --add safe.directory /home/${{ secrets.SERVER_USER }}/startlight-api &&
-            git pull origin main &&
-            sudo docker compose up -d --build &&
-            sleep 5 &&
-            sudo docker compose logs --tail=50
-          "
+          ssh -i ~/.ssh/id_ed25519 \
+            -o StrictHostKeyChecking=no \
+            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+              set -e
+
+              cd /home/${{ secrets.SERVER_USER }}/startlight-api
+
+              git config --global --add safe.directory /home/${{ secrets.SERVER_USER }}/startlight-api
+              git pull origin main
+
+              sudo docker compose up -d --build
+
+              sleep 5
+              sudo docker compose logs --tail=50
+          EOF
