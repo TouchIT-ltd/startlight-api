@@ -19,7 +19,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
 
-          ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
+          ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
             set -e
 
             cd /home/${{ secrets.SERVER_USER }}/startlight-api
@@ -29,8 +29,8 @@ jobs:
             git reset --hard origin/main
 
             echo "🧹 Freeing Docker space..."
-            docker image prune -af
-            docker builder prune -af
+            sudo docker image prune -af
+            sudo docker builder prune -af
 
             echo "🚀 Rebuild & restart (no downtime)..."
             sudo docker compose up -d --build
@@ -39,7 +39,7 @@ jobs:
 
             echo "📜 Logs:"
             sudo docker compose logs --tail=50
-          "
+          EOF
 
 # name: Deployment
 
