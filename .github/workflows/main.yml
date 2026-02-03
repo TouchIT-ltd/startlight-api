@@ -24,6 +24,10 @@ jobs:
 
             cd /home/${{ secrets.SERVER_USER }}/startlight-api
 
+            echo "📊 Disk usage BEFORE cleanup"
+            df -h /
+            docker system df
+
             echo "📦 Syncing repo..."
             git fetch origin main
             git reset --hard origin/main
@@ -32,10 +36,18 @@ jobs:
             sudo docker image prune -af
             sudo docker builder prune -af
 
+            echo "📊 Disk usage AFTER cleanup"
+            df -h /
+            docker system df
+
             echo "🚀 Rebuild & restart (no downtime)..."
             sudo docker compose up -d --build
 
             sleep 5
+
+            echo "📊 Disk usage AFTER deploy"
+            df -h /
+            docker system df
 
             echo "📜 Logs:"
             sudo docker compose logs --tail=50
@@ -55,18 +67,31 @@ jobs:
 #     steps:
 #       - name: Deploy via SSH
 #         run: |
+#           set -e
+
 #           mkdir -p ~/.ssh
 #           echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
 #           chmod 600 ~/.ssh/id_rsa
 #           ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
-#           ssh -i ~/.ssh/id_rsa -o StrictHostKeyChecking=no ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} "
-#             cd /home/${{ secrets.SERVER_USER }}/startlight-api &&
-#             git pull origin main &&
-#             sudo docker compose up -d --build &&
 
-#             docker image prune -af &&
-#             docker builder prune -af &&
+#           ssh -i ~/.ssh/id_rsa ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
+#             set -e
 
-#             sleep 5 &&
+#             cd /home/${{ secrets.SERVER_USER }}/startlight-api
+
+#             echo "📦 Syncing repo..."
+#             git fetch origin main
+#             git reset --hard origin/main
+
+#             echo "🧹 Freeing Docker space..."
+#             sudo docker image prune -af
+#             sudo docker builder prune -af
+
+#             echo "🚀 Rebuild & restart (no downtime)..."
+#             sudo docker compose up -d --build
+
+#             sleep 5
+
+#             echo "📜 Logs:"
 #             sudo docker compose logs --tail=50
-#             "
+#           EOF
