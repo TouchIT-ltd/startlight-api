@@ -43,12 +43,12 @@ jobs:
             echo "🚀 Rebuild & restart (no downtime)..."
             sudo docker compose up -d --build
 
-            sleep 5
 
             echo "📊 Disk usage AFTER deploy"
             df -h /
             sudo docker system df
 
+            sleep 5
             echo "📜 Logs:"
             sudo docker compose logs --tail=50
           EOF
