@@ -4,6 +4,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { CloudinaryService } from '../../shared/services/cloudinary.service';
 
@@ -52,8 +53,42 @@ export class UsersService {
     return bcrypt.hash(password, salt);
   }
 
-  async create(userData: any, file?: any): Promise<any> {
+  async create(userData: any, file?: any, creatorUserId?: string): Promise<any> {
     console.log('Creating user with data:', userData);
+    console.log('Creator user ID:', creatorUserId);
+
+    // Role-based creation restrictions
+    if (creatorUserId) {
+      const creator = await this.mongoDb.findOne(this.collectionName, creatorUserId);
+      if (!creator) {
+        throw new ConflictException('Creator user not found');
+      }
+
+      const { role: creatorRole } = creator;
+      const { role: targetRole } = userData;
+
+      // Admin can create manager & owner
+      if (creatorRole === 'admin') {
+        if (!['manager', 'owner'].includes(targetRole)) {
+          throw new ConflictException('Admin can only create manager or owner accounts');
+        }
+      }
+      // Owner can create manager
+      else if (creatorRole === 'owner') {
+        if (targetRole !== 'manager') {
+          throw new ConflictException('Owner can only create manager accounts');
+        }
+      }
+      // Manager cannot create owner/admin
+      else if (creatorRole === 'manager') {
+        throw new ConflictException('Manager cannot create user accounts');
+      }
+      // Tenant cannot create any accounts
+      else if (creatorRole === 'tenant') {
+        throw new ConflictException('Tenant cannot create user accounts');
+      }
+    }
+
     console.log(
       'File received:',
       file
@@ -119,11 +154,21 @@ export class UsersService {
     return userWithoutPassword;
   }
 
-  async findAll(page = 1, limit = 10): Promise<any> {
+  async findAll(page = 1, limit = 10, filters: { role?: string; isActive?: boolean } = {}): Promise<any> {
     const skip = (page - 1) * limit;
+
+    // Build filter query
+    const query: any = {};
+    if (filters.role) {
+      query.role = filters.role;
+    }
+    if (filters.isActive !== undefined) {
+      query.isActive = filters.isActive;
+    }
+
     const [users, total] = await Promise.all([
-      this.mongoDb.findAll(this.collectionName, {}, { skip, limit }),
-      this.mongoDb.count(this.collectionName),
+      this.mongoDb.findAll(this.collectionName, query, { skip, limit }),
+      this.mongoDb.count(this.collectionName, query),
     ]);
 
     const usersWithoutPasswords = users.map((user) => {
@@ -180,5 +225,58 @@ export class UsersService {
     }
 
     return { message: 'User deleted successfully' };
+  }
+
+  async deactivate(id: string): Promise<{ message: string }> {
+    const user = await this.mongoDb.findOne(this.collectionName, id);
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    await this.mongoDb.update(this.collectionName, id, {
+      isActive: false,
+      updatedAt: new Date(),
+    });
+
+    return { message: 'User deactivated successfully' };
+  }
+
+  async activate(id: string): Promise<{ message: string }> {
+    const user = await this.mongoDb.findOne(this.collectionName, id);
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    await this.mongoDb.update(this.collectionName, id, {
+      isActive: true,
+      updatedAt: new Date(),
+    });
+
+    return { message: 'User activated successfully' };
+  }
+
+  async resetPassword(id: string): Promise<{ message: string; temporaryPassword: string }> {
+    const user = await this.mongoDb.findOne(this.collectionName, id);
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    // Generate a temporary password
+    const temporaryPassword = crypto.randomBytes(8).toString('hex');
+    const hashedPassword = await this.hashPassword(temporaryPassword);
+
+    await this.mongoDb.update(this.collectionName, id, {
+      password: hashedPassword,
+      passwordResetRequired: true,
+      updatedAt: new Date(),
+    });
+
+    return {
+      message: 'Password reset successfully. User must change password on next login.',
+      temporaryPassword,
+    };
   }
 }

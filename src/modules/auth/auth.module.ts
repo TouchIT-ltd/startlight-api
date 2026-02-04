@@ -17,6 +17,7 @@ import { SharedModule } from '../../shared/shared.module';
         signOptions: { expiresIn: configService.get('config.jwt.expiration') },
       }),
       inject: [ConfigService],
+      global: true,
     }),
   ],
   controllers: [AuthController],

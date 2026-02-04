@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Delete,
+  Headers,
 } from '@nestjs/common';
 import { NotificationsService } from './notifications.service';
 import { NotificationResponseDto } from './dto/notification-response.dto';
@@ -25,12 +26,11 @@ export class NotificationsController {
 
   @Get()
   @ApiOperation({ summary: 'Get a paginated list of notifications' })
-  @ApiQuery({ name: 'userId', required: false, description: 'Filter by user ID' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number', example: '1' })
   @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: '10' })
   @ApiOkResponse({ description: 'List of notifications', type: PaginatedNotificationsDto })
   async findAll(
-    @Query('userId') userId?: string,
+    @Headers('user-id') userId: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {

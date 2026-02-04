@@ -1,0 +1,74 @@
+import { IsString, IsNumber, IsIn, IsOptional, Min } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
+export class CreateUnitDto {
+  @ApiProperty({
+    description: 'ID of the property this unit belongs to',
+    example: '507f1f77bcf86cd799439012',
+  })
+  @IsString()
+  propertyId!: string;
+
+  @ApiProperty({
+    description: 'Unit number within the property',
+    example: 'A101',
+  })
+  @IsString()
+  unitNumber!: string;
+
+  @ApiProperty({
+    description: 'Description of the unit',
+    example: 'Spacious 2-bedroom apartment with balcony',
+  })
+  @IsString()
+  description!: string;
+
+  @ApiProperty({
+    description: 'Monthly rent price',
+    example: 1200,
+  })
+  @IsNumber()
+  @Min(0)
+  price!: number;
+
+  @ApiProperty({
+    description: 'Lease duration in months',
+    example: 12,
+  })
+  @IsNumber()
+  @Min(1)
+  duration!: number;
+
+  @ApiProperty({
+    description: 'Number of bedrooms',
+    example: 2,
+  })
+  @IsNumber()
+  @Min(0)
+  bedrooms!: number;
+
+  @ApiProperty({
+    description: 'Number of bathrooms',
+    example: 1,
+  })
+  @IsNumber()
+  @Min(0)
+  bathrooms!: number;
+
+  @ApiProperty({
+    description: 'Current status of the unit',
+    example: 'vacant',
+    enum: ['vacant', 'occupied', 'maintenance'],
+  })
+  @IsString()
+  @IsIn(['vacant', 'occupied', 'maintenance'])
+  status!: 'vacant' | 'occupied' | 'maintenance';
+
+  @ApiPropertyOptional({
+    description: 'ID of the tenant currently occupying this unit',
+    example: '507f1f77bcf86cd799439013',
+  })
+  @IsOptional()
+  @IsString()
+  tenantId?: string;
+}

@@ -7,6 +7,7 @@ import {
   Param,
   Put,
   Delete,
+  Headers,
 } from '@nestjs/common';
 import { IssuesService } from './issues.service';
 import { CreateIssueDto } from './dto/create-issue.dto';
@@ -54,7 +55,7 @@ export class IssuesController {
     type: PaginatedIssuesDto,
   })
   async findMyIssues(
-    @Query('userId') userId: string,
+    @Headers('user-id') userId: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {

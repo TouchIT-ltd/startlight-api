@@ -13,13 +13,26 @@ import {
   DefaultValuePipe,
   UseInterceptors,
   UploadedFile,
+  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
+import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/guards/roles.guard';
+import { Roles, UserRole } from '../../shared/decorators/roles.decorator';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiQuery,
+} from '@nestjs/swagger';
 
+@ApiTags('users')
 @Controller('users')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
@@ -45,16 +58,29 @@ export class UsersController {
   async create(
     @Body() createUserDto: CreateUserDto,
     @UploadedFile() file?: any,
+    @Query('creatorId') creatorId?: string,
   ) {
-    return this.usersService.create(createUserDto, file);
+    return this.usersService.create(createUserDto, file, creatorId);
   }
 
   @Get()
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Get all users with filtering',
+    description: 'Access: ADMIN only - List all users with optional filtering'
+  })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+  @ApiQuery({ name: 'role', required: false, enum: UserRole, description: 'Filter by user role' })
+  @ApiQuery({ name: 'isActive', required: false, type: Boolean, description: 'Filter by active status' })
+  @ApiResponse({ status: 200, description: 'List of users' })
   async findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+    @Query('role') role?: UserRole,
+    @Query('isActive') isActive?: boolean,
   ) {
-    return this.usersService.findAll(page, limit);
+    return this.usersService.findAll(page, limit, { role, isActive });
   }
 
   @Get(':id')
@@ -70,5 +96,41 @@ export class UsersController {
   @Delete(':id')
   async remove(@Param('id') id: string) {
     return this.usersService.remove(id);
+  }
+
+  @Patch(':id/deactivate')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Deactivate a user account',
+    description: 'Access: ADMIN only - Deactivate user account'
+  })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'User deactivated successfully' })
+  async deactivate(@Param('id') id: string) {
+    return this.usersService.deactivate(id);
+  }
+
+  @Patch(':id/activate')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Activate a user account',
+    description: 'Access: ADMIN only - Reactivate user account'
+  })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'User activated successfully' })
+  async activate(@Param('id') id: string) {
+    return this.usersService.activate(id);
+  }
+
+  @Patch(':id/reset-password')
+  @Roles(UserRole.ADMIN)
+  @ApiOperation({
+    summary: 'Reset user password',
+    description: 'Access: ADMIN only - Reset user password and force change on next login'
+  })
+  @ApiParam({ name: 'id', description: 'User ID' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  async resetPassword(@Param('id') id: string) {
+    return this.usersService.resetPassword(id);
   }
 }

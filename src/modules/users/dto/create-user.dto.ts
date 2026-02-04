@@ -29,10 +29,10 @@ export class CreateUserDto {
   @ApiProperty({
     example: 'tenant',
     description: 'Role of the user',
-    enum: ['tenant', 'owner'],
+    enum: ['tenant', 'manager', 'owner', 'admin'],
   })
-  @IsIn(['tenant', 'owner'])
-  role!: 'tenant' | 'owner';
+  @IsIn(['tenant', 'manager', 'owner', 'admin'])
+  role!: 'tenant' | 'manager' | 'owner' | 'admin';
 
   // nameSlipImage is handled by file upload interceptor, not included in DTO validation
 }

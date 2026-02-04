@@ -10,6 +10,8 @@ import { LoggingInterceptor } from './interceptors/logging.interceptor';
 import { MongoDatabaseService } from './database/mongo-database.service';
 import { EmailService } from './email/email.service';
 import { CloudinaryService } from './services/cloudinary.service';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { RolesGuard } from './guards/roles.guard';
 
 @Global()
 @Module({

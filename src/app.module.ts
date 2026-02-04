@@ -10,6 +10,14 @@ import { IssuesModule } from './modules/issues/issues.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { UserPreferencesModule } from './modules/user-preferences/user-preferences.module';
+import { PropertiesModule } from './modules/properties/properties.module';
+import { UnitsModule } from './modules/units/units.module';
+import { ManagerModule } from './modules/manager/manager.module';
+import { RentRulesModule } from './modules/rent-rules/rent-rules.module';
+import { RentRequestsModule } from './modules/rent-requests/rent-requests.module';
+import { OwnerModule } from './modules/owner/owner.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { AdminModule } from './modules/admin/admin.module';
 
 @Module({
   imports: [
@@ -27,6 +35,14 @@ import { UserPreferencesModule } from './modules/user-preferences/user-preferenc
     NotificationsModule,
     DocumentsModule,
     UserPreferencesModule,
+    PropertiesModule,
+    UnitsModule,
+    ManagerModule,
+    RentRulesModule,
+    RentRequestsModule,
+    OwnerModule,
+    ReportsModule,
+    AdminModule,
   ],
 })
 export class AppModule {}
