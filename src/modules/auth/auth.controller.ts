@@ -90,17 +90,6 @@ export class AuthController {
   }
 
   @Post('login')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', format: 'email', example: 'user@example.com' },
-        password: { type: 'string', example: 'Password123!' },
-        pushNotificationId: { type: 'string', example: 'device_token_xyz', nullable: true },
-      },
-      required: ['email', 'password'],
-    },
-  })
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({ status: 200, description: 'User logged in with access token' })
   async login(@Body() loginDto: LoginDto) {
@@ -108,16 +97,6 @@ export class AuthController {
   }
 
   @Post('verify-otp')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', format: 'email', example: 'user@example.com' },
-        otp: { type: 'string', example: '1234' },
-      },
-      required: ['email', 'otp'],
-    },
-  })
   @ApiOperation({ summary: 'Verify OTP (for signup or password reset)' })
   @ApiResponse({ status: 200, description: 'OTP verified successfully' })
   async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
@@ -125,15 +104,6 @@ export class AuthController {
   }
 
   @Post('forgot-password')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', format: 'email', example: 'user@example.com' },
-      },
-      required: ['email'],
-    },
-  })
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({ status: 200, description: 'OTP sent for password reset' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {

@@ -5,6 +5,8 @@ export class LoginDto {
   @ApiProperty({
     example: 'user@example.com',
     description: 'User email address',
+    type: 'string',
+    format: 'email',
   })
   @IsEmail()
   email!: string;
@@ -12,6 +14,8 @@ export class LoginDto {
   @ApiProperty({
     example: 'Password123!',
     description: 'User password (min 6 characters)',
+    type: 'string',
+    minLength: 6,
   })
   @IsString()
   @MinLength(6)
@@ -20,7 +24,9 @@ export class LoginDto {
   @ApiProperty({
     example: 'device_token_xyz',
     description: 'Push notification device ID (optional)',
+    type: 'string',
     required: false,
+    nullable: true,
   })
   @IsOptional()
   @IsString()
