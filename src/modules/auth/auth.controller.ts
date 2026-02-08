@@ -113,7 +113,7 @@ export class AuthController {
       type: 'object',
       properties: {
         email: { type: 'string', format: 'email', example: 'user@example.com' },
-        otp: { type: 'string', example: '1234', minLength: 4, maxLength: 4 },
+        otp: { type: 'string', example: '1234' },
       },
       required: ['email', 'otp'],
     },
