@@ -1,4 +1,4 @@
-﻿import { Controller, Post, Body } from '@nestjs/common';
+﻿import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -6,6 +6,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
+import { SendSignupOtpDto } from './dto/send-signup-otp.dto';
 import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -15,12 +16,30 @@ import {
   ApiBody,
   ApiOperation,
   ApiResponse,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 
 @Controller('auth')
 @ApiTags('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @Post('send-signup-otp')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+      },
+      required: ['email'],
+    },
+  })
+  @ApiOperation({ summary: 'Send OTP for email verification during signup' })
+  @ApiResponse({ status: 200, description: 'OTP sent to email' })
+  async sendSignupOtp(@Body() sendSignupOtpDto: SendSignupOtpDto) {
+    return this.authService.sendSignupOtp(sendSignupOtpDto);
+  }
 
   @Post('register')
   @UseInterceptors(
@@ -61,8 +80,8 @@ export class AuthController {
       },
     },
   })
-  @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User registered successfully' })
+  @ApiOperation({ summary: 'Register a new user (no token issued - email must be verified)' })
+  @ApiResponse({ status: 201, description: 'User registered successfully. OTP sent to email.' })
   async register(
     @Body() createUserDto: CreateUserDto,
     @UploadedFile() file?: any,
@@ -71,32 +90,81 @@ export class AuthController {
   }
 
   @Post('login')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+        password: { type: 'string', example: 'Password123!' },
+        pushNotificationId: { type: 'string', example: 'device_token_xyz', nullable: true },
+      },
+      required: ['email', 'password'],
+    },
+  })
   @ApiOperation({ summary: 'Login user' })
-  @ApiResponse({ status: 200, description: 'User logged in' })
+  @ApiResponse({ status: 200, description: 'User logged in with access token' })
   async login(@Body() loginDto: LoginDto) {
     return this.authService.login(loginDto);
   }
 
+  @Post('verify-otp')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+        otp: { type: 'string', example: '1234', minLength: 4, maxLength: 4 },
+      },
+      required: ['email', 'otp'],
+    },
+  })
+  @ApiOperation({ summary: 'Verify OTP (for signup or password reset)' })
+  @ApiResponse({ status: 200, description: 'OTP verified successfully' })
+  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
+    return this.authService.verifyOtp(verifyOtpDto);
+  }
+
   @Post('forgot-password')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+      },
+      required: ['email'],
+    },
+  })
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({ status: 200, description: 'OTP sent for password reset' })
   async forgotPassword(@Body() forgotPasswordDto: ForgotPasswordDto) {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
-  @Post('verify-otp')
-  @ApiOperation({ summary: 'Verify OTP' })
-  @ApiResponse({ status: 200, description: 'OTP verified' })
-  async verifyOtp(@Body() verifyOtpDto: VerifyOtpDto) {
-    return this.authService.verifyOtp(verifyOtpDto);
-  }
-
   @Post('reset-password')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        resetToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
+        newPassword: { type: 'string', example: 'NewPassword123!' },
+      },
+      required: ['resetToken', 'newPassword'],
+    },
+  })
   @ApiOperation({ summary: 'Reset password' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
   async resetPassword(
     @Body() resetPasswordDto: ResetPasswordDto,
   ): Promise<ResetPasswordResponseDto> {
     return this.authService.resetPassword(resetPasswordDto);
+  }
+
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Logout user (clear push notification ID)' })
+  @ApiResponse({ status: 200, description: 'User logged out successfully' })
+  async logout(@Request() req: any) {
+    return this.authService.logout(req.user.id);
   }
 }

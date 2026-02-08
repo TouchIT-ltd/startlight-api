@@ -148,6 +148,8 @@ export class UsersService {
       nameSlipImage: ninSlipUrl,
       role: userData.role,
       isActive: true,
+      emailVerified: false,
+      pushNotificationId: null,
     });
 
     const { password, ...userWithoutPassword } = user;
@@ -277,6 +279,79 @@ export class UsersService {
     return {
       message: 'Password reset successfully. User must change password on next login.',
       temporaryPassword,
+    };
+  }
+
+  async updateProfile(
+    id: string,
+    updateProfileDto: any,
+    file?: any,
+  ): Promise<any> {
+    const user = await this.mongoDb.findOne(this.collectionName, id);
+
+    if (!user) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    const updateData: any = {};
+
+    // Update fullname if provided
+    if (updateProfileDto.fullname) {
+      updateData.fullname = updateProfileDto.fullname;
+    }
+
+    // Update phone number if provided
+    if (updateProfileDto.phoneNumber) {
+      updateData.phoneNumber = updateProfileDto.phoneNumber;
+    }
+
+    // Handle profile image upload if provided
+    if (file) {
+      const allowedMimes = [
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+        'image/webp',
+      ];
+      if (!allowedMimes.includes(file.mimetype)) {
+        throw new ConflictException(
+          'Only image files (jpg, jpeg, png, webp) are allowed',
+        );
+      }
+
+      console.log('Uploading profile image to Cloudinary...');
+      const profileImageUrl = await this.cloudinaryService.uploadImage(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      );
+      console.log('Cloudinary result:', profileImageUrl);
+
+      if (!profileImageUrl) {
+        throw new ConflictException('Failed to upload profile image');
+      }
+
+      updateData.profileImage = profileImageUrl;
+    }
+
+    // Update user
+    const updatedUser = await this.mongoDb.update(
+      this.collectionName,
+      id,
+      {
+        ...updateData,
+        updatedAt: new Date(),
+      },
+    );
+
+    if (!updatedUser) {
+      throw new NotFoundException(`User with ID ${id} not found`);
+    }
+
+    const { password, ...userWithoutPassword } = updatedUser;
+    return {
+      message: 'Profile updated successfully',
+      user: userWithoutPassword,
     };
   }
 }
