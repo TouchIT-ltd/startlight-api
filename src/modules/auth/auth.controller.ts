@@ -1,4 +1,12 @@
-﻿import { Controller, Post, Body, UseGuards, Request } from '@nestjs/common';
+﻿import {
+  Controller,
+  Post,
+  Body,
+  UseGuards,
+  Request,
+  UseInterceptors,
+  UploadedFile,
+} from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
@@ -6,14 +14,11 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
-import { SendSignupOtpDto } from './dto/send-signup-otp.dto';
-import { UseInterceptors, UploadedFile } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import {
   ApiTags,
   ApiConsumes,
-  ApiBody,
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
@@ -23,23 +28,7 @@ import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 @Controller('auth')
 @ApiTags('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
-
-  @Post('send-signup-otp')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        email: { type: 'string', format: 'email', example: 'user@example.com' },
-      },
-      required: ['email'],
-    },
-  })
-  @ApiOperation({ summary: 'Send OTP for email verification during signup' })
-  @ApiResponse({ status: 200, description: 'OTP sent to email' })
-  async sendSignupOtp(@Body() sendSignupOtpDto: SendSignupOtpDto) {
-    return this.authService.sendSignupOtp(sendSignupOtpDto);
-  }
+  constructor(private readonly authService: AuthService) { }
 
   @Post('register')
   @UseInterceptors(
@@ -63,28 +52,17 @@ export class AuthController {
     }),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        fullname: { type: 'string', example: 'John Doe' },
-        email: {
-          type: 'string',
-          format: 'email',
-          example: 'john.doe@example.com',
-        },
-        password: { type: 'string', example: 'Password123!' },
-        phoneNumber: { type: 'string', example: '+1234567890' },
-        role: { type: 'string', example: 'tenant' },
-        ninSlip: { type: 'string', format: 'binary' },
-      },
-    },
+  @ApiOperation({
+    summary: 'Register a new user',
+    description: 'Registers a new user and automatically sends an OTP for email verification.',
   })
-  @ApiOperation({ summary: 'Register a new user (no token issued - email must be verified)' })
-  @ApiResponse({ status: 201, description: 'User registered successfully. OTP sent to email.' })
+  @ApiResponse({
+    status: 201,
+    description: 'User registered successfully. OTP sent to email.',
+  })
   async register(
     @Body() createUserDto: CreateUserDto,
-    @UploadedFile() file?: any,
+    @UploadedFile() file?: Express.Multer.File,
   ) {
     return this.authService.register(createUserDto, file);
   }
@@ -111,16 +89,6 @@ export class AuthController {
   }
 
   @Post('reset-password')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        resetToken: { type: 'string', example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...' },
-        newPassword: { type: 'string', example: 'NewPassword123!' },
-      },
-      required: ['resetToken', 'newPassword'],
-    },
-  })
   @ApiOperation({ summary: 'Reset password' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })
   async resetPassword(

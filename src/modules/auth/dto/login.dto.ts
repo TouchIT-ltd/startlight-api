@@ -32,3 +32,4 @@ export class LoginDto {
   @IsString()
   pushNotificationId?: string;
 }
+// apiproperty add it to swagger config 

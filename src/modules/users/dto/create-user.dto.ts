@@ -34,5 +34,11 @@ export class CreateUserDto {
   @IsIn(['tenant', 'manager', 'owner', 'admin'])
   role!: 'tenant' | 'manager' | 'owner' | 'admin';
 
-  // nameSlipImage is handled by file upload interceptor, not included in DTO validation
+  @ApiProperty({
+    type: 'string',
+    format: 'binary',
+    description: 'NIN Slip Image/PDF',
+    required: false,
+  })
+  ninSlip?: any; // Property for Swagger; actual file is handled by interceptor
 }

@@ -17,6 +17,29 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
 import { SendSignupOtpDto } from './dto/send-signup-otp.dto';
+import { CreateUserDto } from '../users/dto/create-user.dto';
+import { LoginDto } from './dto/login.dto';
+
+// Define return interfaces for better type safety
+export interface AuthResponse {
+  user: any; // Ideally this should be a User interface
+  accessToken?: string;
+  message?: string;
+  otpDetails?: OtpResponse; // Details for dev or debugging
+}
+
+export interface OtpResponse {
+  message: string;
+  data?: {
+    otp?: string;
+    expiresIn: number;
+    note?: string;
+    error?: string;
+  };
+  resetToken?: string;
+  expiresIn?: number;
+  user?: any; // User object
+}
 
 @Injectable()
 export class AuthService {
@@ -36,79 +59,63 @@ export class AuthService {
     private jwtService: JwtService,
     private configService: ConfigService,
     private emailService: EmailService,
-  ) {}
+  ) { }
 
   private generateOtp(): string {
     return Math.floor(1000 + Math.random() * 9000).toString();
   }
 
-  private async sendOtpEmail(email: string, otp: string): Promise<void> {
-    const success = await this.emailService.sendOtpEmail(email, otp);
-    if (!success) {
-      throw new Error('Failed to send OTP email');
-    }
-  }
-
-  async sendSignupOtp(sendSignupOtpDto: SendSignupOtpDto): Promise<any> {
-    const { email } = sendSignupOtpDto;
-
-    console.log('📧 Send Signup OTP Request:');
-    console.log(`   Email: ${email}`);
-
-    // Check if user already exists and is verified
-    const existingUser = await this.usersService.findByEmail(email);
-    if (existingUser && existingUser.emailVerified) {
-      console.log('   ❌ User already exists and verified');
-      throw new BadRequestException('User with this email already exists');
-    }
-
+  /*
+   * Helper method to generate and send OTP
+   */
+  private async generateAndSendOtp(
+    email: string,
+    purpose: 'signup' | 'password_reset',
+  ): Promise<OtpResponse> {
     // Generate OTP
     const otp = this.generateOtp();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    console.log(`   Generated OTP: ${otp}`);
-    console.log(`   Expires at: ${expiresAt}`);
 
-    // Store OTP with signup purpose
-    this.otpStore.set(email, { otp, expiresAt, purpose: 'signup' });
+    this.logger.log(`Generated OTP for ${purpose}: ${otp} (Expires: ${expiresAt})`);
+
+    // Store OTP
+    this.otpStore.set(email, { otp, expiresAt, purpose });
 
     // Try to send email
-    console.log(`   Calling sendSignupOtpEmail...`);
     try {
-      const success = await this.emailService.sendSignupOtpEmail(email, otp);
+      let success = false;
+      if (purpose === 'signup') {
+        success = await this.emailService.sendSignupOtpEmail(email, otp);
+      } else {
+        success = await this.emailService.sendOtpEmail(email, otp);
+      }
+
+      const isDev = process.env.NODE_ENV === 'development';
 
       if (success) {
-        console.log('   ✅ Email service reported success');
-        // In development, also return OTP for testing
-        if (process.env.NODE_ENV === 'development') {
-          return {
-            message: 'OTP sent to your email',
-            data: {
-              otp,
-              expiresIn: 600,
-              note: 'Development mode - OTP shown',
-            },
-          };
-        } else {
-          return {
-            message: 'OTP sent to your email',
-            data: { expiresIn: 600 },
-          };
-        }
+        return {
+          message: 'OTP sent to your email',
+          data: isDev ? {
+            otp,
+            expiresIn: 600,
+            note: 'Development mode - OTP shown'
+          } : { expiresIn: 600 },
+        };
       } else {
-        console.log('   ⚠️ Email service returned false');
+        this.logger.warn(`Email service returned false for ${email}`);
         return {
           message: 'OTP generated (email service issue)',
           data: {
-            otp,
+            otp, // Return OTP if email fails so testing can continue
             expiresIn: 600,
             note: 'Email service failed - OTP shown for testing',
           },
         };
       }
     } catch (error: any) {
-      console.error('   ❌ Exception in email sending:', error.message);
+      this.logger.error(`Exception in email sending: ${error.message}`);
       return {
-        message: 'OTP generated (check console for OTP)',
+        message: 'OTP generated (check console/logs)',
         data: {
           otp,
           expiresIn: 600,
@@ -116,6 +123,19 @@ export class AuthService {
         },
       };
     }
+  }
+
+  // Deprecated or Internal Use if needed, but logic is primarily in register now
+  async sendSignupOtp(sendSignupOtpDto: SendSignupOtpDto): Promise<OtpResponse> {
+    const { email } = sendSignupOtpDto;
+
+    // Check if user already exists and is verified
+    const existingUser = await this.usersService.findByEmail(email);
+    if (existingUser && existingUser.emailVerified) {
+      throw new BadRequestException('User with this email already exists');
+    }
+
+    return this.generateAndSendOtp(email, 'signup');
   }
 
   async validateUser(email: string, password: string): Promise<any> {
@@ -135,17 +155,17 @@ export class AuthService {
     return null;
   }
 
-  async login(loginData: any): Promise<any> {
-    const user = await this.validateUser(loginData.email, loginData.password);
+  async login(loginDto: LoginDto): Promise<AuthResponse> {
+    const user = await this.validateUser(loginDto.email, loginDto.password);
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
     // Save pushNotificationId if provided
-    if (loginData.pushNotificationId) {
+    if (loginDto.pushNotificationId) {
       await this.usersService.update(user.id, {
-        pushNotificationId: loginData.pushNotificationId,
+        pushNotificationId: loginDto.pushNotificationId,
       });
     }
 
@@ -157,15 +177,21 @@ export class AuthService {
     };
   }
 
-  async register(registerData: any, file?: any): Promise<any> {
+  async register(createUserDto: CreateUserDto, file?: Express.Multer.File): Promise<any> {
     try {
-      // Create user with emailVerified: false
-      const user = await this.usersService.create(registerData, file);
+      // 1. Check early if user exists (UsersService.create also checks, but checking here helps flow)
+      // We'll let UsersService.create handle the check & creation to avoid race conditions/redundancy
 
-      // Return user data without access token
-      // User must verify email before getting an access token
+      // 2. Create user with emailVerified: false
+      const user = await this.usersService.create(createUserDto, file);
+
+      // 3. Automatically send OTP
+      this.logger.log(`User registered: ${user.email}. Sending OTP...`);
+      const otpResponse = await this.generateAndSendOtp(user.email, 'signup');
+
+      // 4. Return combined response
       return {
-        message: 'Registration successful. Please verify your email to complete signup.',
+        message: 'Registration successful. OTP sent to email.',
         user: {
           id: user.id,
           email: user.email,
@@ -173,7 +199,9 @@ export class AuthService {
           role: [user.role],
           emailVerified: user.emailVerified,
         },
+        otpDetails: otpResponse // Include OTP details (msg, debug info)
       };
+
     } catch (error: any) {
       this.logger.error(
         'Error during registration',
@@ -187,82 +215,24 @@ export class AuthService {
     }
   }
 
-  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<any> {
+  async forgotPassword(forgotPasswordDto: ForgotPasswordDto): Promise<OtpResponse> {
     const { email } = forgotPasswordDto;
-
-    console.log('🔧 Forgot Password Request:');
-    console.log(`   Email: ${email}`);
 
     // Check if user exists
     const user = await this.usersService.findByEmail(email);
-    console.log(`   User found in DB: ${!!user}`);
 
     if (!user) {
-      console.log('   ❌ User not found - returning generic message');
-      // Don't reveal that user doesn't exist
+      // Don't reveal that user doesn't exist for security
       return {
         message: 'If your email exists, you will receive an OTP shortly',
-        note: 'User not found in database',
+        data: { expiresIn: 0, note: 'User not found' }
       };
     }
 
-    // Generate OTP
-    const otp = this.generateOtp();
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
-    console.log(`   Generated OTP: ${otp}`);
-    console.log(`   Expires at: ${expiresAt}`);
-
-    // Store OTP with password_reset purpose
-    this.otpStore.set(email, { otp, expiresAt, purpose: 'password_reset' });
-
-    // Try to send email
-    console.log(`   Calling sendOtpEmail...`);
-    try {
-      const success = await this.emailService.sendOtpEmail(email, otp);
-
-      if (success) {
-        console.log('   ✅ Email service reported success');
-        // In development, also return OTP for testing
-        if (process.env.NODE_ENV === 'development') {
-          return {
-            message: 'OTP sent to your email',
-            data: {
-              otp,
-              expiresIn: 600,
-              note: 'Development mode - OTP shown',
-            },
-          };
-        } else {
-          return {
-            message: 'OTP sent to your email',
-            data: { expiresIn: 600 },
-          };
-        }
-      } else {
-        console.log('   ⚠️ Email service returned false');
-        return {
-          message: 'OTP generated (email service issue)',
-          data: {
-            otp,
-            expiresIn: 600,
-            note: 'Email service failed - OTP shown for testing',
-          },
-        };
-      }
-    } catch (error: any) {
-      console.error('   ❌ Exception in email sending:', error.message);
-      return {
-        message: 'OTP generated (check console for OTP)',
-        data: {
-          otp,
-          expiresIn: 600,
-          error: error.message,
-        },
-      };
-    }
+    return this.generateAndSendOtp(email, 'password_reset');
   }
 
-  async verifyOtp(verifyOtpDto: VerifyOtpDto): Promise<any> {
+  async verifyOtp(verifyOtpDto: VerifyOtpDto): Promise<OtpResponse> {
     const { email, otp } = verifyOtpDto;
 
     const storedOtpData = this.otpStore.get(email);
@@ -350,7 +320,6 @@ export class AuthService {
       }
 
       // Update user's password using the user ID from token
-      // Note: Don't hash here - usersService.update will handle hashing
       const updatedUser = await this.usersService.update(payload.sub, {
         password: newPassword,
       });
@@ -378,7 +347,6 @@ export class AuthService {
         },
       };
     } catch (error: any) {
-      // Type error as any
       if (error.name === 'TokenExpiredError') {
         throw new UnauthorizedException('Reset token has expired');
       }
@@ -389,7 +357,7 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string): Promise<any> {
+  async logout(userId: string): Promise<{ message: string }> {
     // Clear pushNotificationId on logout
     await this.usersService.update(userId, {
       pushNotificationId: null,
