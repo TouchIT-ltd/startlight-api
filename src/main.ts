@@ -36,9 +36,7 @@ async function bootstrap() {
   );
 
   // Setup Swagger
-  if (configService.get('config.app.nodeEnv') !== 'production') {
-    setupSwagger(app);
-  }
+  setupSwagger(app);
 
   const port = configService.get('config.app.port');
   await app.listen(port);
