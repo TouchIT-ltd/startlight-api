@@ -1,4 +1,4 @@
-import { IsEmail, IsString, MinLength, IsIn } from 'class-validator';
+import { IsEmail, IsString, MinLength, IsIn, IsOptional } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateUserDto {
@@ -40,5 +40,6 @@ export class CreateUserDto {
     description: 'NIN Slip Image/PDF',
     required: false,
   })
+  @IsOptional()
   ninSlip?: any; // Property for Swagger; actual file is handled by interceptor
 }

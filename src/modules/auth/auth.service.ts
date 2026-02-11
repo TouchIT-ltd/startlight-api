@@ -182,6 +182,11 @@ export class AuthService {
       // 1. Check early if user exists (UsersService.create also checks, but checking here helps flow)
       // We'll let UsersService.create handle the check & creation to avoid race conditions/redundancy
 
+      // CHECK: Ensure NIN Slip is provided for ALL users
+      if (!file) {
+        throw new BadRequestException('NIN Slip is required');
+      }
+
       // 2. Create user with emailVerified: false
       const user = await this.usersService.create(createUserDto, file);
 

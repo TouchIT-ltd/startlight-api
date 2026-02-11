@@ -18,6 +18,7 @@ import { RentRequestsModule } from './modules/rent-requests/rent-requests.module
 import { OwnerModule } from './modules/owner/owner.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { AdminModule } from './modules/admin/admin.module';
+import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { AdminModule } from './modules/admin/admin.module';
     OwnerModule,
     ReportsModule,
     AdminModule,
+    PaymentModule,
   ],
 })
-export class AppModule {}
+export class AppModule { }
