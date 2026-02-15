@@ -6,11 +6,11 @@ import {
   Query,
   Param,
   UseInterceptors,
-  UploadedFile,
+  UploadedFiles,
   Put,
   Delete,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApartmentsService } from './apartments.service';
 import { CreateApartmentDto } from './dto/create-apartment.dto';
@@ -29,11 +29,11 @@ import {
 @ApiTags('apartments')
 @Controller('apartments')
 export class ApartmentsController {
-  constructor(private readonly apartmentsService: ApartmentsService) {}
+  constructor(private readonly apartmentsService: ApartmentsService) { }
 
   @Post()
   @UseInterceptors(
-    FileInterceptor('images', {
+    FilesInterceptor('images', 5, {
       storage: memoryStorage(),
       fileFilter: (req, file, callback) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
@@ -50,15 +50,39 @@ export class ApartmentsController {
     }),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ type: CreateApartmentDto })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['title', 'price', 'priceUnit', 'location', 'city', 'bedrooms', 'bathrooms', 'squareFeet', 'minTerm', 'minTermUnit'],
+      properties: {
+        title: { type: 'string', example: 'Cozy 2BR near park' },
+        description: { type: 'string', example: 'A lovely apartment...' },
+        price: { type: 'number', example: 1200 },
+        priceUnit: { type: 'string', enum: ['mo', 'year'], example: 'mo' },
+        location: { type: 'string', example: 'Ikeja' },
+        city: { type: 'string', example: 'Lagos' },
+        bedrooms: { type: 'number', example: 2 },
+        bathrooms: { type: 'number', example: 1 },
+        squareFeet: { type: 'number', example: 1200 },
+        minTerm: { type: 'number', example: 6 },
+        minTermUnit: { type: 'string', enum: ['month', 'year'], example: 'month' },
+        amenities: { type: 'array', items: { type: 'string' }, example: ['WiFi', 'Parking'] },
+        images: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Upload up to 5 images'
+        },
+      },
+    },
+  })
   @ApiOperation({ summary: 'Create a new apartment listing with images' })
   @ApiResponse({
     status: 201,
     description: 'Apartment created',
     type: ApartmentResponseDto,
   })
-  async create(@Body() dto: CreateApartmentDto, @UploadedFile() file?: any) {
-    return this.apartmentsService.create(dto, file);
+  async create(@Body() dto: CreateApartmentDto, @UploadedFiles() files: Array<Express.Multer.File>) {
+    return this.apartmentsService.create(dto, files);
   }
 
   @Get()
@@ -87,7 +111,7 @@ export class ApartmentsController {
 
   @Put(':id')
   @UseInterceptors(
-    FileInterceptor('images', {
+    FilesInterceptor('images', 5, {
       storage: memoryStorage(),
       fileFilter: (req, file, callback) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
@@ -104,7 +128,30 @@ export class ApartmentsController {
     }),
   )
   @ApiConsumes('multipart/form-data')
-  @ApiBody({ type: CreateApartmentDto })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', example: 'Cozy 2BR near park' },
+        description: { type: 'string', example: 'A lovely apartment...' },
+        price: { type: 'number', example: 1200 },
+        priceUnit: { type: 'string', enum: ['mo', 'year'], example: 'mo' },
+        location: { type: 'string', example: 'Ikeja' },
+        city: { type: 'string', example: 'Lagos' },
+        bedrooms: { type: 'number', example: 2 },
+        bathrooms: { type: 'number', example: 1 },
+        squareFeet: { type: 'number', example: 1200 },
+        minTerm: { type: 'number', example: 6 },
+        minTermUnit: { type: 'string', enum: ['month', 'year'], example: 'month' },
+        amenities: { type: 'array', items: { type: 'string' }, example: ['WiFi', 'Parking'] },
+        images: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Upload up to 5 images'
+        },
+      },
+    },
+  })
   @ApiOperation({ summary: 'Update an existing apartment listing' })
   @ApiParam({ name: 'id', description: 'Apartment ID' })
   @ApiResponse({
@@ -115,9 +162,9 @@ export class ApartmentsController {
   async update(
     @Param('id') id: string,
     @Body() dto: CreateApartmentDto,
-    @UploadedFile() file?: any,
+    @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
-    return this.apartmentsService.update(id, dto, file);
+    return this.apartmentsService.update(id, dto, files);
   }
 
   @Delete(':id')

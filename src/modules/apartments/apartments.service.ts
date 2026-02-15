@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  BadRequestException,
 } from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { CloudinaryService } from '../../shared/services/cloudinary.service';
@@ -13,49 +14,94 @@ export class ApartmentsService {
   constructor(
     private readonly mongoDb: MongoDatabaseService,
     private readonly cloudinaryService: CloudinaryService,
-  ) {}
+  ) { }
 
-  async create(data: any, file?: any): Promise<any> {
-    console.log('Creating apartment with data:', data);
-    console.log(
-      'File received:',
-      file
-        ? {
-            originalname: file.originalname,
-            size: file.size,
-            mimetype: file.mimetype,
-          }
-        : 'No file',
+  async uploadImages(files: Array<Express.Multer.File>): Promise<string[]> {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files provided');
+    }
+
+    // Validate all files first
+    const allowedMimes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'image/webp',
+    ];
+
+    for (const file of files) {
+      if (!allowedMimes.includes(file.mimetype)) {
+        throw new ConflictException(
+          `File ${file.originalname} is not an allowed image type (jpg, jpeg, png, webp)`,
+        );
+      }
+    }
+
+    console.log(`Uploading ${files.length} images to Cloudinary...`);
+
+    // Upload all files in parallel
+    const uploadPromises = files.map(file =>
+      this.cloudinaryService.uploadImage(
+        file.buffer,
+        file.originalname,
+        file.mimetype,
+      )
     );
 
-    // Handle file upload for images array
+    const uploadedUrls = await Promise.all(uploadPromises);
+
+    // Filter out any failed uploads (nulls)
+    const validUrls = uploadedUrls.filter((url): url is string => !!url);
+
+    if (validUrls.length !== files.length) {
+      console.warn('Some images failed to upload');
+    }
+
+    return validUrls;
+  }
+
+  async create(data: any, files?: Array<Express.Multer.File>): Promise<any> {
+    console.log('Creating apartment with data:', data);
+
     let images = data.images || [];
-    if (file) {
-      // Validate file type (images only)
+
+    // Ensure images is an array
+    if (!Array.isArray(images)) {
+      images = [images];
+    }
+
+    if (files && files.length > 0) {
+      // Validate all files
       const allowedMimes = [
         'image/jpeg',
         'image/jpg',
         'image/png',
         'image/webp',
       ];
-      if (!allowedMimes.includes(file.mimetype)) {
-        throw new ConflictException(
-          'Only image files (jpg, jpeg, png, webp) are allowed',
-        );
+
+      for (const file of files) {
+        if (!allowedMimes.includes(file.mimetype)) {
+          throw new ConflictException(
+            `File ${file.originalname} is not an allowed image type`,
+          );
+        }
       }
 
-      console.log('Uploading to Cloudinary...');
-      // Upload to Cloudinary
-      const imageUrl = await this.cloudinaryService.uploadImage(
-        file.buffer,
-        file.originalname,
-        file.mimetype,
+      console.log(`Uploading ${files.length} images to Cloudinary...`);
+
+      const uploadPromises = files.map(file =>
+        this.cloudinaryService.uploadImage(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        )
       );
-      console.log('Cloudinary result:', imageUrl);
-      if (!imageUrl) {
-        throw new ConflictException('Failed to upload image');
-      }
-      images = [imageUrl]; // For single file upload, create array with one image
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      const validUrls = uploadedUrls.filter((url): url is string => !!url);
+
+      // Append new uploads to the images list
+      images = [...images, ...validUrls];
     }
 
     const created = await this.mongoDb.create(this.collection, {
@@ -92,7 +138,7 @@ export class ApartmentsService {
     return item;
   }
 
-  async update(id: string, data: any, file?: any): Promise<any> {
+  async update(id: string, data: any, files?: Array<Express.Multer.File>): Promise<any> {
     // Check if apartment exists
     const existing = await this.mongoDb.findOne(this.collection, id);
     if (!existing) {
@@ -101,44 +147,63 @@ export class ApartmentsService {
 
     console.log('Updating apartment with data:', data);
     console.log(
-      'File received:',
-      file
-        ? {
-            originalname: file.originalname,
-            size: file.size,
-            mimetype: file.mimetype,
-          }
-        : 'No file',
+      'Files received:',
+      files
+        ? files.map(f => ({
+          originalname: f.originalname,
+          size: f.size,
+          mimetype: f.mimetype,
+        }))
+        : 'No files',
     );
 
-    // Handle file upload for images array
+    // Start with existing images or what's passed in data (if erasing/reordering)
+    // IMPORTANT: If 'images' is passed in body, it replaces existing images (e.g. deleting old ones by omission).
+    // If files are uploaded, they are APPENDED to the resulting list? Or REPLACE?
+    // User request: "uploading image not inserting string".
+    // Usually on update:
+    // - If `images` field is present in body (string URLs), use that (allows keeping old images/deleting some).
+    // - If `files` are present, upload them and APPEND to the list.
+
     let images = data.images || existing.images || [];
-    if (file) {
-      // Validate file type (images only)
+
+    // Ensure images is an array
+    if (!Array.isArray(images)) {
+      images = [images];
+    }
+
+    if (files && files.length > 0) {
+      // Validate all files
       const allowedMimes = [
         'image/jpeg',
         'image/jpg',
         'image/png',
         'image/webp',
       ];
-      if (!allowedMimes.includes(file.mimetype)) {
-        throw new ConflictException(
-          'Only image files (jpg, jpeg, png, webp) are allowed',
-        );
+
+      for (const file of files) {
+        if (!allowedMimes.includes(file.mimetype)) {
+          throw new ConflictException(
+            `File ${file.originalname} is not an allowed image type`,
+          );
+        }
       }
 
-      console.log('Uploading to Cloudinary...');
-      // Upload to Cloudinary
-      const imageUrl = await this.cloudinaryService.uploadImage(
-        file.buffer,
-        file.originalname,
-        file.mimetype,
+      console.log(`Uploading ${files.length} images to Cloudinary...`);
+
+      const uploadPromises = files.map(file =>
+        this.cloudinaryService.uploadImage(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        )
       );
-      console.log('Cloudinary result:', imageUrl);
-      if (!imageUrl) {
-        throw new ConflictException('Failed to upload image');
-      }
-      images = [imageUrl]; // For single file upload, replace with new image
+
+      const uploadedUrls = await Promise.all(uploadPromises);
+      const validUrls = uploadedUrls.filter((url): url is string => !!url);
+
+      // Append new uploads to the images list
+      images = [...images, ...validUrls];
     }
 
     const updated = await this.mongoDb.update(this.collection, id, {
