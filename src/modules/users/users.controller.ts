@@ -95,6 +95,7 @@ export class UsersController {
 
   @Get()
   @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Get all users with filtering',
     description: 'Access: ADMIN only - List all users with optional filtering'
@@ -114,22 +115,32 @@ export class UsersController {
   }
 
   @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get user by ID' })
+  @ApiResponse({ status: 200, description: 'Return user details' })
   async findOne(@Param('id') id: string) {
     return this.usersService.findOne(id);
   }
 
   @Patch(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Update user by ID' })
+  @ApiResponse({ status: 200, description: 'User updated successfully' })
   async update(@Param('id') id: string, @Body() updateUserDto: any) {
     return this.usersService.update(id, updateUserDto);
   }
 
   @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Delete user by ID' })
+  @ApiResponse({ status: 200, description: 'User deleted successfully' })
   async remove(@Param('id') id: string) {
     return this.usersService.remove(id);
   }
 
   @Patch(':id/deactivate')
   @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Deactivate a user account',
     description: 'Access: ADMIN only - Deactivate user account'
@@ -142,6 +153,7 @@ export class UsersController {
 
   @Patch(':id/activate')
   @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Activate a user account',
     description: 'Access: ADMIN only - Reactivate user account'
@@ -154,6 +166,7 @@ export class UsersController {
 
   @Patch(':id/reset-password')
   @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
   @ApiOperation({
     summary: 'Reset user password',
     description: 'Access: ADMIN only - Reset user password and force change on next login'
