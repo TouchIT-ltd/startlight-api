@@ -69,6 +69,30 @@ export class UsersController {
     return this.usersService.create(createUserDto, file, creatorId);
   }
 
+  @Get('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Get current user profile',
+    description: 'Get the profile of the currently logged-in user',
+  })
+  @ApiResponse({ status: 200, description: 'Return current user profile' })
+  async getProfile(@Request() req: any) {
+    return this.usersService.findOne(req.user.id);
+  }
+
+  @Delete('profile')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Delete current user account',
+    description: 'Delete the account of the currently logged-in user',
+  })
+  @ApiResponse({ status: 200, description: 'User account deleted successfully' })
+  async deleteProfile(@Request() req: any) {
+    return this.usersService.remove(req.user.id);
+  }
+
   @Get()
   @Roles(UserRole.ADMIN)
   @ApiOperation({
@@ -172,8 +196,8 @@ export class UsersController {
   })
   @ApiBearerAuth()
   @ApiOperation({
-    summary: 'Update user profile',
-    description: 'Update profile information including fullname, phone number, and profile image'
+    summary: 'Update current user profile',
+    description: 'Update profile information for the currently logged-in user',
   })
   @ApiResponse({ status: 200, description: 'Profile updated successfully' })
   async updateProfile(
