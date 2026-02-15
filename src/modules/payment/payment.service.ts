@@ -10,6 +10,8 @@ import { ConfigService } from '@nestjs/config';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { randomBytes, createHmac } from 'crypto';
 import fetch from 'node-fetch';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class PaymentService {
@@ -19,6 +21,8 @@ export class PaymentService {
     constructor(
         private readonly configService: ConfigService,
         private readonly mongoDb: MongoDatabaseService,
+        private readonly auditLogsService: AuditLogsService,
+        private readonly notificationsService: NotificationsService,
     ) { }
 
     public generatePaymentReference(prefix = 'STARLIGHT'): string {
@@ -59,8 +63,33 @@ export class PaymentService {
                 case 'RENT_REQUEST': // Paying a specific rent request
                     const rentRequest = await this.mongoDb.findOne('rent-requests', resourceId);
                     if (!rentRequest) throw new NotFoundException('Rent Request not found');
-                    amount = rentRequest.requestedAmount;
-                    resourceTitle = `Rent Request: ${rentRequest.requestType}`;
+
+                    // Security Check 1: Ownership
+                    if (rentRequest.userId !== userId) {
+                        throw new UnauthorizedException('You can only pay for your own rent requests');
+                    }
+
+                    // Security Check 2: Approval Status
+                    if (rentRequest.status !== 'approved') {
+                        throw new BadRequestException(`Cannot pay for a request with status: ${rentRequest.status}. Wait for approval.`);
+                    }
+
+                    // Security Check 3: Double Payment
+                    if (rentRequest.isPaid) {
+                        throw new BadRequestException('This rent request has already been paid.');
+                    }
+                    // Check for existing successful payments for this resource
+                    const existingPayment = await this.mongoDb.findOneBy(this.collectionName, {
+                        resourceId,
+                        resourceType: 'RENT_REQUEST',
+                        status: 'SUCCESS'
+                    });
+                    if (existingPayment) {
+                        throw new BadRequestException('Payment already completed for this request.');
+                    }
+
+                    amount = rentRequest.requestedAmount || rentRequest.amount; // Handle both naming conventions if any
+                    resourceTitle = `Rent Request: ${rentRequest.requestType || 'Unit Rental'}`;
                     break;
 
                 case 'UNIT': // Paying for a unit (maybe deposit?)
@@ -233,6 +262,43 @@ export class PaymentService {
                         gatewayResponse: data,
                     });
                     this.logger.log(`Payment ${reference} updated to SUCCESS`);
+
+                    // Audit Log
+                    await this.auditLogsService.create({
+                        userId: payment.userId,
+                        action: 'PAYMENT_SUCCESS',
+                        entityType: 'payment',
+                        entityId: payment.id,
+                        details: { amount: payment.amount, reference },
+                        createdAt: new Date(),
+                    });
+
+                    // Notification
+                    await this.notificationsService.create({
+                        userId: payment.userId,
+                        title: 'Payment Successful',
+                        message: `Payment of ${payment.amount} for ${payment.title} was successful.`,
+                        type: 'PAYMENT_SUCCESS',
+                        entityId: payment.id,
+                    });
+
+                    // Propagate to Rent Request if applicable
+                    if (payment.resourceType === 'RENT_REQUEST') {
+                        await this.mongoDb.update('rent-requests', payment.resourceId, {
+                            isPaid: true,
+                            paidAt: new Date(),
+                            status: 'paid'
+                        });
+                        // If logic requires, auto-generate lease here or notify manager
+                        await this.notificationsService.create({
+                            userId: payment.userId,
+                            title: 'Rent Request Paid',
+                            message: 'Your rent request is marked as paid.',
+                            type: 'RENT_PAID',
+                            entityId: payment.resourceId,
+                        });
+                    }
+
                 } else {
                     this.logger.log(`Payment ${reference} already marked as SUCCESS`);
                 }

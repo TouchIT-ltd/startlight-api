@@ -1,18 +1,32 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class RentRequestsService {
   private readonly collection = 'rent-requests';
 
-  constructor(private readonly mongoDb: MongoDatabaseService) {}
+  constructor(
+    private readonly mongoDb: MongoDatabaseService,
+    private readonly auditLogsService: AuditLogsService,
+    private readonly notificationsService: NotificationsService,
+  ) { }
 
   async create(data: any): Promise<any> {
     console.log('Creating rent request with data:', data);
 
-    // Set default status to pending
+    // Fetch unit to get price and propertyId (if not provided or to validate)
+    const unit = await this.mongoDb.findOne('units', data.unitId);
+    if (!unit) {
+      throw new NotFoundException(`Unit with ID ${data.unitId} not found`);
+    }
+
+    // Set default status to pending and use unit price
     const requestData = {
       ...data,
+      amount: unit.price, // Auto-calculated from unit
+      propertyId: unit.propertyId, // Ensure propertyId matches unit
       status: 'pending',
     };
 
@@ -38,7 +52,7 @@ export class RentRequestsService {
       const properties = await this.mongoDb.findAll('properties', { managerId: userId });
       const propertyIds = properties.map(p => p.id);
 
-      const leases = await this.mongoDb.findAll('leases', { apartmentId: { $in: propertyIds } });
+      const leases = await this.mongoDb.findAll('leases', { propertyId: { $in: propertyIds } });
       const leaseIds = leases.map(l => l.id);
 
       filter.leaseId = { $in: leaseIds };
@@ -81,6 +95,17 @@ export class RentRequestsService {
       throw new NotFoundException('Request has already been processed');
     }
 
+    // Unit Locking Logic: Check if any other request for this unit is already approved
+    const unitId = existing.unitId;
+    const conflictingRequest = await this.mongoDb.findOneBy(this.collection, {
+      unitId,
+      status: 'approved'
+    });
+
+    if (conflictingRequest) {
+      throw new ConflictException('This unit already has an approved tenant. Cannot approve another request.');
+    }
+
     const updateData: any = { status: 'approved' };
     if (managerNotes) {
       updateData.managerNotes = managerNotes;
@@ -91,6 +116,25 @@ export class RentRequestsService {
     if (!updated) {
       throw new NotFoundException(`Rent request with ID ${id} not found`);
     }
+
+    // Audit Log
+    await this.auditLogsService.create({
+      userId: existing.userId,
+      action: 'APPROVE_RENT_REQUEST',
+      entityType: 'rent-request',
+      entityId: id,
+      details: { managerNotes },
+      createdAt: new Date(),
+    });
+
+    // Notification
+    await this.notificationsService.create({
+      userId: existing.userId,
+      title: 'Rent Request Approved',
+      message: 'Your rent request has been approved. Please proceed to payment.',
+      type: 'RENT_APPROVED',
+      entityId: id,
+    });
 
     return updated;
   }
@@ -116,6 +160,25 @@ export class RentRequestsService {
     if (!updated) {
       throw new NotFoundException(`Rent request with ID ${id} not found`);
     }
+
+    // Audit Log
+    await this.auditLogsService.create({
+      userId: existing.userId,
+      action: 'REJECT_RENT_REQUEST',
+      entityType: 'rent-request',
+      entityId: id,
+      details: { managerNotes },
+      createdAt: new Date(),
+    });
+
+    // Notification
+    await this.notificationsService.create({
+      userId: existing.userId,
+      title: 'Rent Request Rejected',
+      message: `Your rent request was rejected. Notes: ${managerNotes || 'No notes provided.'}`,
+      type: 'RENT_REJECTED',
+      entityId: id,
+    });
 
     return updated;
   }

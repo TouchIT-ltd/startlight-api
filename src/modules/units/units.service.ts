@@ -1,11 +1,15 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class UnitsService {
   private readonly collection = 'units';
 
-  constructor(private readonly mongoDb: MongoDatabaseService) {}
+  constructor(
+    private readonly mongoDb: MongoDatabaseService,
+    private readonly auditLogsService: AuditLogsService
+  ) { }
 
   async create(data: any): Promise<any> {
     console.log('Creating unit with data:', data);
@@ -20,7 +24,22 @@ export class UnitsService {
       throw new ConflictException(`Unit number ${data.unitNumber} already exists in this property`);
     }
 
-    return this.mongoDb.create(this.collection, data);
+    const created = await this.mongoDb.create(this.collection, data);
+
+    // Fetch property to get ownerId for audit log
+    const property = await this.mongoDb.findOne('properties', data.propertyId);
+    if (property) {
+      await this.auditLogsService.create({
+        userId: property.ownerId,
+        action: 'CREATE_UNIT',
+        entityType: 'unit',
+        entityId: created.id,
+        details: { unitNumber: data.unitNumber, propertyId: data.propertyId },
+        createdAt: new Date()
+      });
+    }
+
+    return created;
   }
 
   async findAll(propertyId?: string, page = 1, limit = 10, filters: { status?: string; tenantId?: string } = {}): Promise<any> {
@@ -84,6 +103,19 @@ export class UnitsService {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
 
+    // Audit Log
+    const property = await this.mongoDb.findOne('properties', existing.propertyId);
+    if (property) {
+      await this.auditLogsService.create({
+        userId: property.ownerId,
+        action: 'UPDATE_UNIT',
+        entityType: 'unit',
+        entityId: id,
+        details: { updates: Object.keys(data) },
+        createdAt: new Date()
+      });
+    }
+
     return updated;
   }
 
@@ -102,6 +134,19 @@ export class UnitsService {
     const deleted = await this.mongoDb.delete(this.collection, id);
     if (!deleted) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
+    }
+
+    // Audit Log
+    const property = await this.mongoDb.findOne('properties', existing.propertyId);
+    if (property) {
+      await this.auditLogsService.create({
+        userId: property.ownerId,
+        action: 'DELETE_UNIT',
+        entityType: 'unit',
+        entityId: id,
+        details: { unitNumber: existing.unitNumber },
+        createdAt: new Date()
+      });
     }
 
     return { message: 'Unit deleted successfully' };

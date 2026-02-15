@@ -16,7 +16,7 @@ export class CreateLeaseDto {
 
   @ApiProperty({ example: 'mongo_1616161616_abcd1235' })
   @IsString()
-  apartmentId!: string;
+  propertyId!: string;
 
   @ApiProperty({ example: 'A101' })
   @IsString()

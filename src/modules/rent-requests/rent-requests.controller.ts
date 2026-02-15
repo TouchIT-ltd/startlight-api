@@ -6,8 +6,8 @@ import {
   Patch,
   Param,
   Query,
-  Headers,
   UseGuards,
+  Request,
 } from '@nestjs/common';
 import { RentRequestsService } from './rent-requests.service';
 import { CreateRentRequestDto } from './dto/create-rent-request.dto';
@@ -29,7 +29,7 @@ import {
 @Controller('rent-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RentRequestsController {
-  constructor(private readonly rentRequestsService: RentRequestsService) {}
+  constructor(private readonly rentRequestsService: RentRequestsService) { }
 
   @Post()
   @Roles(UserRole.TENANT)
@@ -63,7 +63,7 @@ export class RentRequestsController {
     description: 'List of rent requests',
   })
   async findAll(
-    @Headers('user-id') userId?: string,
+    @Request() req: any,
     @Query('status') status?: string,
     @Query('propertyId') propertyId?: string,
     @Query('tenantId') tenantId?: string,
@@ -72,6 +72,7 @@ export class RentRequestsController {
   ) {
     const p = parseInt(page, 10) || 1;
     const l = parseInt(limit, 10) || 10;
+    const userId = req?.user?.id;
     return this.rentRequestsService.findAll(userId, p, l, {
       status,
       propertyId,

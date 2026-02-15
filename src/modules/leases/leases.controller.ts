@@ -1,3 +1,6 @@
+import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { RolesGuard } from '../../shared/guards/roles.guard';
+import { Roles, UserRole } from '../../shared/decorators/roles.decorator';
 import {
   Controller,
   Post,
@@ -9,6 +12,8 @@ import {
   UploadedFile,
   Put,
   Delete,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -28,10 +33,12 @@ import {
 
 @ApiTags('leases')
 @Controller('leases')
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class LeasesController {
-  constructor(private readonly leasesService: LeasesService) {}
+  constructor(private readonly leasesService: LeasesService) { }
 
   @Post()
+  @Roles(UserRole.ADMIN)
   @UseInterceptors(
     FileInterceptor('document', {
       storage: memoryStorage(),
@@ -60,7 +67,7 @@ export class LeasesController {
       type: 'object',
       properties: {
         userId: { type: 'string', example: 'mongo_1616161616_abcd1234' },
-        apartmentId: { type: 'string', example: 'mongo_1616161616_abcd1235' },
+        propertyId: { type: 'string', example: 'mongo_1616161616_abcd1235' },
         unitNumber: { type: 'string', example: 'A101' },
         startDate: { type: 'string', format: 'date', example: '2026-02-01' },
         endDate: { type: 'string', format: 'date', example: '2027-02-01' },
@@ -77,7 +84,7 @@ export class LeasesController {
       },
       required: [
         'userId',
-        'apartmentId',
+        'propertyId',
         'unitNumber',
         'startDate',
         'endDate',
@@ -99,15 +106,23 @@ export class LeasesController {
   }
 
   @Get()
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
   @ApiOperation({ summary: 'Get a paginated list of leases' })
   @ApiOkResponse({ description: 'List of leases', type: PaginatedLeasesDto })
-  async findAll(@Query('page') page = '1', @Query('limit') limit = '10') {
+  async findAll(
+    @Request() req: any,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+    @Query('propertyId') propertyId?: string,
+  ) {
     const p = parseInt(page, 10) || 1;
     const l = parseInt(limit, 10) || 10;
-    return this.leasesService.findAll(p, l);
+    const { id: userId, role } = req.user || {};
+    return this.leasesService.findAll(p, l, { propertyId, userId, role });
   }
 
   @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
   @ApiOperation({ summary: 'Get lease by id' })
   @ApiParam({ name: 'id', description: 'Lease ID' })
   @ApiResponse({
@@ -120,6 +135,7 @@ export class LeasesController {
   }
 
   @Get('my-lease')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: "Get current user's lease" })
   @ApiResponse({
     status: 200,
@@ -131,6 +147,7 @@ export class LeasesController {
   }
 
   @Put(':id')
+  @Roles(UserRole.ADMIN)
   @UseInterceptors(
     FileInterceptor('document', {
       storage: memoryStorage(),
@@ -159,7 +176,7 @@ export class LeasesController {
       type: 'object',
       properties: {
         userId: { type: 'string', example: 'mongo_1616161616_abcd1234' },
-        apartmentId: { type: 'string', example: 'mongo_1616161616_abcd1235' },
+        propertyId: { type: 'string', example: 'mongo_1616161616_abcd1235' },
         unitNumber: { type: 'string', example: 'A101' },
         startDate: { type: 'string', format: 'date', example: '2026-02-01' },
         endDate: { type: 'string', format: 'date', example: '2027-02-01' },
@@ -176,7 +193,7 @@ export class LeasesController {
       },
       required: [
         'userId',
-        'apartmentId',
+        'propertyId',
         'unitNumber',
         'startDate',
         'endDate',
@@ -201,6 +218,7 @@ export class LeasesController {
   }
 
   @Delete(':id')
+  @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Delete a lease agreement' })
   @ApiParam({ name: 'id', description: 'Lease ID' })
   @ApiResponse({ status: 200, description: 'Lease deleted successfully' })

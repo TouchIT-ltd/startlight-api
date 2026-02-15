@@ -1,15 +1,31 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
+import { AuditLogsService } from '../audit-logs/audit-logs.service';
 
 @Injectable()
 export class PropertiesService {
   private readonly collection = 'properties';
 
-  constructor(private readonly mongoDb: MongoDatabaseService) {}
+  constructor(
+    private readonly mongoDb: MongoDatabaseService,
+    private readonly auditLogsService: AuditLogsService
+  ) { }
 
   async create(data: any): Promise<any> {
     console.log('Creating property with data:', data);
-    return this.mongoDb.create(this.collection, data);
+    const created = await this.mongoDb.create(this.collection, data);
+
+    // Audit Log
+    await this.auditLogsService.create({
+      userId: data.ownerId,
+      action: 'CREATE_PROPERTY',
+      entityType: 'property',
+      entityId: created.id,
+      details: { name: data.name },
+      createdAt: new Date()
+    });
+
+    return created;
   }
 
   async findAll(ownerId?: string, managerId?: string, page = 1, limit = 10): Promise<any> {
@@ -60,6 +76,16 @@ export class PropertiesService {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
+    // Audit Log
+    await this.auditLogsService.create({
+      userId: existing.ownerId,
+      action: 'UPDATE_PROPERTY',
+      entityType: 'property',
+      entityId: id,
+      details: { updates: Object.keys(data) },
+      createdAt: new Date()
+    });
+
     return updated;
   }
 
@@ -74,6 +100,16 @@ export class PropertiesService {
     if (!deleted) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
+
+    // Audit Log
+    await this.auditLogsService.create({
+      userId: existing.ownerId,
+      action: 'DELETE_PROPERTY',
+      entityType: 'property',
+      entityId: id,
+      details: { name: existing.name },
+      createdAt: new Date()
+    });
 
     return { message: 'Property deleted successfully' };
   }

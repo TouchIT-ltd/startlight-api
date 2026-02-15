@@ -5,7 +5,15 @@ import { MongoDatabaseService } from '../../shared/database/mongo-database.servi
 export class NotificationsService {
   private readonly collection = 'notifications';
 
-  constructor(private readonly mongoDb: MongoDatabaseService) {}
+  constructor(private readonly mongoDb: MongoDatabaseService) { }
+
+  async create(data: any): Promise<any> {
+    return this.mongoDb.create(this.collection, {
+      ...data,
+      isRead: false,
+      createdAt: new Date(),
+    });
+  }
 
   async findAll(userId?: string, page = 1, limit = 10): Promise<any> {
     const skip = (page - 1) * limit;

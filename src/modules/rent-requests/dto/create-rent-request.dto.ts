@@ -10,28 +10,18 @@ export class CreateRentRequestDto {
   tenantId!: string;
 
   @ApiProperty({
-    description: 'ID of the lease this request relates to',
+    description: 'ID of the property',
+    example: '507f1f77bcf86cd799439010',
+  })
+  @IsString()
+  propertyId!: string;
+
+  @ApiProperty({
+    description: 'ID of the unit being requested',
     example: '507f1f77bcf86cd799439012',
   })
   @IsString()
-  leaseId!: string;
-
-  @ApiProperty({
-    description: 'Type of rent request',
-    example: 'partial_payment',
-    enum: ['partial_payment', 'payment_plan', 'extension', 'reduction', 'other'],
-  })
-  @IsString()
-  @IsIn(['partial_payment', 'payment_plan', 'extension', 'reduction', 'other'])
-  requestType!: string;
-
-  @ApiProperty({
-    description: 'Amount requested (for partial payments)',
-    example: 600.00,
-  })
-  @IsNumber()
-  @Min(0)
-  requestedAmount!: number;
+  unitId!: string;
 
   @ApiProperty({
     description: 'Reason for the request',

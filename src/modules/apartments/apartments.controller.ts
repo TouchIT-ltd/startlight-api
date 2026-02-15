@@ -1,3 +1,5 @@
+import { RolesGuard } from '../../shared/guards/roles.guard';
+import { Roles, UserRole } from '../../shared/decorators/roles.decorator';
 import {
   Controller,
   Post,
@@ -9,7 +11,9 @@ import {
   UploadedFiles,
   Put,
   Delete,
+  UseGuards,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { ApartmentsService } from './apartments.service';
@@ -32,6 +36,8 @@ export class ApartmentsController {
   constructor(private readonly apartmentsService: ApartmentsService) { }
 
   @Post()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OWNER)
   @UseInterceptors(
     FilesInterceptor('images', 5, {
       storage: memoryStorage(),
@@ -110,6 +116,8 @@ export class ApartmentsController {
   }
 
   @Put(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OWNER)
   @UseInterceptors(
     FilesInterceptor('images', 5, {
       storage: memoryStorage(),
@@ -168,6 +176,8 @@ export class ApartmentsController {
   }
 
   @Delete(':id')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OWNER)
   @ApiOperation({ summary: 'Delete an apartment listing' })
   @ApiParam({ name: 'id', description: 'Apartment ID' })
   @ApiResponse({ status: 200, description: 'Apartment deleted successfully' })

@@ -7,8 +7,10 @@ import {
   Param,
   Put,
   Delete,
-  Headers,
+  UseGuards,
+  Request,
 } from '@nestjs/common';
+import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { IssuesService } from './issues.service';
 import { CreateIssueDto } from './dto/create-issue.dto';
 import { IssueResponseDto } from './dto/issue-response.dto';
@@ -24,8 +26,9 @@ import {
 
 @ApiTags('issues')
 @Controller('issues')
+@UseGuards(JwtAuthGuard)
 export class IssuesController {
-  constructor(private readonly issuesService: IssuesService) {}
+  constructor(private readonly issuesService: IssuesService) { }
 
   @Post()
   @ApiBody({ type: CreateIssueDto })
@@ -35,8 +38,9 @@ export class IssuesController {
     description: 'Issue created',
     type: IssueResponseDto,
   })
-  async create(@Body() dto: CreateIssueDto) {
-    return this.issuesService.create(dto);
+  async create(@Body() dto: CreateIssueDto, @Request() req: any) {
+    const userId = req.user.id;
+    return this.issuesService.create(dto, userId);
   }
 
   @Get()
@@ -55,10 +59,11 @@ export class IssuesController {
     type: PaginatedIssuesDto,
   })
   async findMyIssues(
-    @Headers('user-id') userId: string,
+    @Request() req: any,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {
+    const userId = req.user.id;
     const p = parseInt(page, 10) || 1;
     const l = parseInt(limit, 10) || 10;
     return this.issuesService.findMyIssues(userId, p, l);
