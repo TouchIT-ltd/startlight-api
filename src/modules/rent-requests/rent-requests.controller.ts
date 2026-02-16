@@ -23,9 +23,10 @@ import {
   ApiQuery,
   ApiBody,
   ApiHeader,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
-@ApiTags('rent-requests')
+@ApiBearerAuth()
 @Controller('rent-requests')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RentRequestsController {
@@ -33,6 +34,7 @@ export class RentRequestsController {
 
   @Post()
   @Roles(UserRole.TENANT)
+  @ApiTags('Tenant Portal')
   @ApiOperation({
     summary: 'Create a new rent request',
     description: 'Access: TENANT only - Submit rent payment request'
@@ -48,6 +50,7 @@ export class RentRequestsController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Tenant Portal', 'Owner Portal', 'Manager Portal', 'Admin Portal')
   @ApiOperation({
     summary: 'Get a paginated list of rent requests',
     description: 'Access: ADMIN, OWNER, MANAGER, TENANT - List rent requests with filtering'
@@ -82,6 +85,7 @@ export class RentRequestsController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Tenant Portal', 'Owner Portal', 'Manager Portal', 'Admin Portal')
   @ApiOperation({
     summary: 'Get rent request by id',
     description: 'Access: ADMIN, OWNER, MANAGER, TENANT - Get rent request details'
@@ -98,6 +102,7 @@ export class RentRequestsController {
 
   @Patch(':id/approve')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Manager Portal', 'Owner Portal', 'Admin Portal')
   @ApiOperation({
     summary: 'Approve a rent request',
     description: 'Access: ADMIN, OWNER, MANAGER - Approve tenant rent payment request'
@@ -129,6 +134,7 @@ export class RentRequestsController {
 
   @Patch(':id/reject')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Manager Portal', 'Owner Portal', 'Admin Portal')
   @ApiOperation({
     summary: 'Reject a rent request',
     description: 'Access: ADMIN, OWNER, MANAGER - Reject tenant rent payment request'

@@ -28,6 +28,7 @@ import {
   ApiBody,
   ApiOkResponse,
   ApiParam,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
 @ApiTags('apartments')
@@ -38,6 +39,7 @@ export class ApartmentsController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @ApiBearerAuth()
   @UseInterceptors(
     FilesInterceptor('images', 5, {
       storage: memoryStorage(),
@@ -118,6 +120,7 @@ export class ApartmentsController {
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @ApiBearerAuth()
   @UseInterceptors(
     FilesInterceptor('images', 5, {
       storage: memoryStorage(),
@@ -178,6 +181,7 @@ export class ApartmentsController {
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an apartment listing' })
   @ApiParam({ name: 'id', description: 'Apartment ID' })
   @ApiResponse({ status: 200, description: 'Apartment deleted successfully' })

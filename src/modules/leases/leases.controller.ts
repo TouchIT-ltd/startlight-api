@@ -29,9 +29,10 @@ import {
   ApiBody,
   ApiOkResponse,
   ApiParam,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
-@ApiTags('leases')
+@ApiBearerAuth()
 @Controller('leases')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class LeasesController {
@@ -39,6 +40,7 @@ export class LeasesController {
 
   @Post()
   @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
   @UseInterceptors(
     FileInterceptor('document', {
       storage: memoryStorage(),
@@ -107,6 +109,7 @@ export class LeasesController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
   @ApiOperation({ summary: 'Get a paginated list of leases' })
   @ApiOkResponse({ description: 'List of leases', type: PaginatedLeasesDto })
   async findAll(
@@ -123,6 +126,7 @@ export class LeasesController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
   @ApiOperation({ summary: 'Get lease by id' })
   @ApiParam({ name: 'id', description: 'Lease ID' })
   @ApiResponse({
@@ -136,6 +140,7 @@ export class LeasesController {
 
   @Get('my-lease')
   @UseGuards(JwtAuthGuard)
+  @ApiTags('Tenant Portal')
   @ApiOperation({ summary: "Get current user's lease" })
   @ApiResponse({
     status: 200,
@@ -148,6 +153,7 @@ export class LeasesController {
 
   @Put(':id')
   @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
   @UseInterceptors(
     FileInterceptor('document', {
       storage: memoryStorage(),
@@ -219,6 +225,7 @@ export class LeasesController {
 
   @Delete(':id')
   @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
   @ApiOperation({ summary: 'Delete a lease agreement' })
   @ApiParam({ name: 'id', description: 'Lease ID' })
   @ApiResponse({ status: 200, description: 'Lease deleted successfully' })

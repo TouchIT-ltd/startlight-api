@@ -22,15 +22,17 @@ import {
   ApiBody,
   ApiOkResponse,
   ApiParam,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
-@ApiTags('issues')
+@ApiBearerAuth()
 @Controller('issues')
 @UseGuards(JwtAuthGuard)
 export class IssuesController {
   constructor(private readonly issuesService: IssuesService) { }
 
   @Post()
+  @ApiTags('Tenant Portal')
   @ApiBody({ type: CreateIssueDto })
   @ApiOperation({ summary: 'Create a new maintenance issue' })
   @ApiResponse({
@@ -44,6 +46,7 @@ export class IssuesController {
   }
 
   @Get()
+  @ApiTags('Manager Portal', 'Admin Portal')
   @ApiOperation({ summary: 'Get a paginated list of all issues' })
   @ApiOkResponse({ description: 'List of issues', type: PaginatedIssuesDto })
   async findAll(@Query('page') page = '1', @Query('limit') limit = '10') {
@@ -53,6 +56,7 @@ export class IssuesController {
   }
 
   @Get('my-issues')
+  @ApiTags('Tenant Portal')
   @ApiOperation({ summary: "Get current user's issues" })
   @ApiOkResponse({
     description: 'List of user issues',
@@ -70,6 +74,7 @@ export class IssuesController {
   }
 
   @Get(':id')
+  @ApiTags('Tenant Portal', 'Manager Portal', 'Admin Portal')
   @ApiOperation({ summary: 'Get issue by id' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   @ApiResponse({
@@ -82,6 +87,7 @@ export class IssuesController {
   }
 
   @Put(':id')
+  @ApiTags('Manager Portal', 'Admin Portal')
   @ApiBody({ type: CreateIssueDto })
   @ApiOperation({ summary: 'Update an existing issue' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
@@ -95,6 +101,7 @@ export class IssuesController {
   }
 
   @Delete(':id')
+  @ApiTags('Admin Portal')
   @ApiOperation({ summary: 'Delete an issue' })
   @ApiParam({ name: 'id', description: 'Issue ID' })
   @ApiResponse({ status: 200, description: 'Issue deleted successfully' })

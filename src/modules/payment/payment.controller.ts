@@ -26,7 +26,6 @@ interface AuthenticatedRequest {
     };
 }
 
-@ApiTags('Payments')
 @Controller('payments')
 export class PaymentController {
     constructor(private readonly paymentService: PaymentService) { }
@@ -34,6 +33,7 @@ export class PaymentController {
     @Post('initialize')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
+    @ApiTags('Tenant Portal')
     @ApiOperation({ summary: 'Initialize a payment' })
     @ApiResponse({ status: 201, description: 'Payment initialized successfully' })
     async initializePayment(
@@ -52,6 +52,7 @@ export class PaymentController {
     @Get('verify/:reference')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
+    @ApiTags('Tenant Portal')
     @ApiOperation({ summary: 'Verify a payment' })
     @ApiResponse({ status: 200, description: 'Payment verified' })
     async verifyPayment(@Param('reference') reference: string) {
@@ -61,6 +62,7 @@ export class PaymentController {
     @Get()
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
+    @ApiTags('Admin Portal', 'Tenant Portal')
     @ApiOperation({ summary: 'Get all payments' })
     @ApiQuery({ name: 'page', required: false, type: Number })
     @ApiQuery({ name: 'limit', required: false, type: Number })
@@ -79,6 +81,7 @@ export class PaymentController {
     @Get(':id')
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
+    @ApiTags('Admin Portal', 'Tenant Portal')
     @ApiOperation({ summary: 'Get a payment by ID' })
     @ApiResponse({ status: 200, description: 'Return a payment' })
     @ApiResponse({ status: 404, description: 'Payment not found' })
@@ -88,6 +91,7 @@ export class PaymentController {
     }
 
     @Post('webhook')
+    @ApiTags('System')
     @ApiOperation({ summary: 'Paystack Webhook' })
     @HttpCode(HttpStatus.OK)
     async handleWebhook(

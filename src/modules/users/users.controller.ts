@@ -35,7 +35,6 @@ import {
   ApiBody,
 } from '@nestjs/swagger';
 
-@ApiTags('users')
 @Controller('users')
 @UseGuards(JwtAuthGuard, RolesGuard)
 // Re-trigger build
@@ -43,6 +42,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
   @Post()
+  @ApiTags('Authentication')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor('ninSlip', {
@@ -72,6 +72,7 @@ export class UsersController {
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ApiTags('Tenant Portal', 'Owner Portal', 'Manager Portal', 'Admin Portal')
   @ApiOperation({
     summary: 'Get current user profile',
     description: 'Get the profile of the currently logged-in user',
@@ -84,6 +85,7 @@ export class UsersController {
   @Delete('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
+  @ApiTags('Tenant Portal', 'Owner Portal', 'Manager Portal', 'Admin Portal')
   @ApiOperation({
     summary: 'Delete current user account',
     description: 'Delete the account of the currently logged-in user',
@@ -96,6 +98,7 @@ export class UsersController {
   @Get()
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Get all users with filtering',
     description: 'Access: ADMIN only - List all users with optional filtering'
@@ -116,6 +119,7 @@ export class UsersController {
 
   @Get(':id')
   @ApiBearerAuth()
+  @ApiTags('Admin Portal')
   @ApiOperation({ summary: 'Get user by ID' })
   @ApiResponse({ status: 200, description: 'Return user details' })
   async findOne(@Param('id') id: string) {
@@ -124,6 +128,7 @@ export class UsersController {
 
   @Patch(':id')
   @ApiBearerAuth()
+  @ApiTags('Admin Portal')
   @ApiOperation({ summary: 'Update user by ID' })
   @ApiResponse({ status: 200, description: 'User updated successfully' })
   async update(@Param('id') id: string, @Body() updateUserDto: any) {
@@ -132,6 +137,7 @@ export class UsersController {
 
   @Delete(':id')
   @ApiBearerAuth()
+  @ApiTags('Admin Portal')
   @ApiOperation({ summary: 'Delete user by ID' })
   @ApiResponse({ status: 200, description: 'User deleted successfully' })
   async remove(@Param('id') id: string) {
@@ -141,6 +147,7 @@ export class UsersController {
   @Patch(':id/deactivate')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Deactivate a user account',
     description: 'Access: ADMIN only - Deactivate user account'
@@ -154,6 +161,7 @@ export class UsersController {
   @Patch(':id/activate')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Activate a user account',
     description: 'Access: ADMIN only - Reactivate user account'
@@ -167,6 +175,7 @@ export class UsersController {
   @Patch(':id/reset-password')
   @Roles(UserRole.ADMIN)
   @ApiBearerAuth()
+  @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Reset user password',
     description: 'Access: ADMIN only - Reset user password and force change on next login'
@@ -208,6 +217,7 @@ export class UsersController {
     },
   })
   @ApiBearerAuth()
+  @ApiTags('Tenant Portal', 'Owner Portal', 'Manager Portal', 'Admin Portal')
   @ApiOperation({
     summary: 'Update current user profile',
     description: 'Update profile information for the currently logged-in user',

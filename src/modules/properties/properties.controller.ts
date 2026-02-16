@@ -24,16 +24,18 @@ import {
   ApiOkResponse,
   ApiParam,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
-@ApiTags('properties')
+@ApiBearerAuth()
 @Controller('properties')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PropertiesController {
-  constructor(private readonly propertiesService: PropertiesService) {}
+  constructor(private readonly propertiesService: PropertiesService) { }
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @ApiTags('Admin Portal', 'Owner Portal')
   @ApiOperation({
     summary: 'Create a new property',
     description: 'Access: ADMIN, OWNER only - Create property listing'
@@ -49,6 +51,7 @@ export class PropertiesController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
   @ApiOperation({
     summary: 'Get a paginated list of properties',
     description: 'Access: ADMIN, OWNER, MANAGER - List properties with filtering'
@@ -71,6 +74,7 @@ export class PropertiesController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
   @ApiOperation({
     summary: 'Get property by id',
     description: 'Access: ADMIN, OWNER, MANAGER - Get property details'
@@ -87,6 +91,7 @@ export class PropertiesController {
 
   @Put(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @ApiTags('Admin Portal', 'Owner Portal')
   @ApiOperation({
     summary: 'Update an existing property',
     description: 'Access: ADMIN, OWNER only - Update property information'
@@ -103,6 +108,7 @@ export class PropertiesController {
 
   @Delete(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @ApiTags('Admin Portal', 'Owner Portal')
   @ApiOperation({
     summary: 'Delete a property',
     description: 'Access: ADMIN, OWNER only - Delete property listing'

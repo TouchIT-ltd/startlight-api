@@ -24,16 +24,18 @@ import {
   ApiOkResponse,
   ApiParam,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
-@ApiTags('units')
+@ApiBearerAuth()
 @Controller('units')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UnitsController {
-  constructor(private readonly unitsService: UnitsService) {}
+  constructor(private readonly unitsService: UnitsService) { }
 
   @Post()
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
   @ApiOperation({
     summary: 'Create a new unit',
     description: 'Access: ADMIN, OWNER, MANAGER - Create unit within property'
@@ -49,6 +51,7 @@ export class UnitsController {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
   @ApiOperation({
     summary: 'Get a paginated list of units',
     description: 'Access: ADMIN, OWNER, MANAGER, TENANT - List units with filtering'
@@ -73,6 +76,7 @@ export class UnitsController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
   @ApiOperation({
     summary: 'Get unit by id',
     description: 'Access: ADMIN, OWNER, MANAGER, TENANT - Get unit details'
@@ -89,6 +93,7 @@ export class UnitsController {
 
   @Put(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
   @ApiOperation({
     summary: 'Update an existing unit',
     description: 'Access: ADMIN, OWNER, MANAGER - Update unit information'
@@ -105,6 +110,7 @@ export class UnitsController {
 
   @Delete(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @ApiTags('Admin Portal', 'Owner Portal')
   @ApiOperation({
     summary: 'Delete a unit',
     description: 'Access: ADMIN, OWNER only - Delete unit'

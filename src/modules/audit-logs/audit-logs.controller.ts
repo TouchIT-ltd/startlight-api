@@ -9,13 +9,15 @@ import {
   ApiOperation,
   ApiResponse,
   ApiQuery,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 
-@ApiTags('audit-logs')
+@ApiTags('Admin Portal')
+@ApiBearerAuth()
 @Controller('audit-logs')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AuditLogsController {
-  constructor(private readonly auditLogsService: AuditLogsService) {}
+  constructor(private readonly auditLogsService: AuditLogsService) { }
 
   @Get()
   @Roles(UserRole.ADMIN)
