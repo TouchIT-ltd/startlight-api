@@ -37,7 +37,7 @@ export class CreateUserDto {
   @ApiProperty({
     type: 'string',
     format: 'binary',
-    description: 'NIN Slip Image/PDF',
+    description: 'NIN Slip Image (JPG, PNG, WebP) or PDF Document',
     required: false,
   })
   @IsOptional()

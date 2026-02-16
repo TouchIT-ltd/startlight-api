@@ -67,11 +67,9 @@ export class UsersService {
       const { role: creatorRole } = creator;
       const { role: targetRole } = userData;
 
-      // Admin can create manager & owner
+      // Admin can create any role (tenant, manager, owner, admin)
       if (creatorRole === 'admin') {
-        if (!['manager', 'owner'].includes(targetRole)) {
-          throw new ConflictException('Admin can only create manager or owner accounts');
-        }
+        // No restrictions for admin
       }
       // Owner can create manager
       else if (creatorRole === 'owner') {
@@ -93,10 +91,10 @@ export class UsersService {
       'File received:',
       file
         ? {
-            originalname: file.originalname,
-            size: file.size,
-            mimetype: file.mimetype,
-          }
+          originalname: file.originalname,
+          size: file.size,
+          mimetype: file.mimetype,
+        }
         : 'No file',
     );
 

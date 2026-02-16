@@ -24,6 +24,7 @@ import { UpdateProfileDto } from './dto/update-profile.dto';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/guards/roles.guard';
 import { Roles, UserRole } from '../../shared/decorators/roles.decorator';
+import { Public } from '../../shared/decorators/public.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -42,15 +43,46 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) { }
 
   @Post()
+  @Public()
   @ApiTags('Authentication')
   @HttpCode(HttpStatus.CREATED)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        fullname: { type: 'string', example: 'John Doe' },
+        email: { type: 'string', example: 'john@example.com' },
+        password: { type: 'string', example: 'Password123!' },
+        phoneNumber: { type: 'string', example: '+1234567890' },
+        role: {
+          type: 'string',
+          enum: ['tenant', 'manager', 'owner', 'admin'],
+          example: 'tenant'
+        },
+        ninSlip: {
+          type: 'string',
+          format: 'binary',
+          description: 'NIN Slip Image (JPG, PNG, WebP) or Document (PDF)'
+        },
+      },
+      required: ['fullname', 'email', 'password', 'phoneNumber', 'role'],
+    },
+  })
   @UseInterceptors(
     FileInterceptor('ninSlip', {
       storage: memoryStorage(),
       fileFilter: (req, file, callback) => {
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+        const allowedMimes = [
+          'image/jpeg',
+          'image/jpg',
+          'image/png',
+          'image/webp',
+          'application/pdf',
+        ];
+        if (!allowedMimes.includes(file.mimetype)) {
           return callback(
-            new Error('Only image files (jpg, jpeg, png, webp) are allowed!'),
+            new Error('Only image files (jpg, jpeg, png, webp) or PDF documents are allowed!'),
             false,
           );
         }
