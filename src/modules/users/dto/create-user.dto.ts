@@ -31,7 +31,7 @@ export class CreateUserDto {
     description: 'Role of the user',
     enum: ['tenant', 'manager', 'owner', 'admin'],
   })
-  @IsIn(['tenant', 'manager', 'owner', 'admin'])
+  // @IsIn(['tenant', 'manager', 'owner', 'admin'])
   role!: 'tenant' | 'manager' | 'owner' | 'admin';
 
   @ApiProperty({

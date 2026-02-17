@@ -1,8 +1,9 @@
 import { NestFactory } from '@nestjs/core';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
-const compression = require('compression');
+import * as compression from 'compression';
+import * as express from 'express';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger';
 import { join } from 'path';
@@ -15,6 +16,9 @@ async function bootstrap() {
   // Security
   app.use(helmet());
   app.use(compression());
+  app.use(helmet());
+  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  app.use(express.json({ limit: '50mb' }));
 
   // CORS
   app.enableCors({
@@ -29,9 +33,13 @@ async function bootstrap() {
   // Validation
   app.useGlobalPipes(
     new ValidationPipe({
-      whitelist: true,
+      whitelist: false,
       transform: true,
-      forbidNonWhitelisted: true,
+      forbidNonWhitelisted: false,
+      exceptionFactory: (errors) => {
+        console.error('Validation Errors:', JSON.stringify(errors, null, 2));
+        return new BadRequestException(errors);
+      },
     }),
   );
 

@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { CloudinaryService } from '../../shared/services/cloudinary.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class UnitsService {
@@ -8,11 +10,25 @@ export class UnitsService {
 
   constructor(
     private readonly mongoDb: MongoDatabaseService,
-    private readonly auditLogsService: AuditLogsService
+    private readonly auditLogsService: AuditLogsService,
+    private readonly cloudinaryService: CloudinaryService,
+    private readonly usersService: UsersService
   ) { }
 
-  async create(data: any): Promise<any> {
+  async create(data: any, file?: Express.Multer.File): Promise<any> {
     console.log('Creating unit with data:', data);
+
+    // Mandate file upload
+    if (!file) {
+      throw new ConflictException('Unit image is required');
+    }
+
+    // Upload image
+    const imageUrl = await this.cloudinaryService.uploadImage(file.buffer, file.originalname, file.mimetype);
+    if (!imageUrl) {
+      throw new ConflictException('Failed to upload unit image');
+    }
+    data.image = imageUrl;
 
     // Check if unit number already exists for this property
     const existingUnit = await this.mongoDb.findOneBy(this.collection, {

@@ -1,6 +1,12 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  ConflictException,
+} from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
+import { CloudinaryService } from '../../shared/services/cloudinary.service';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class PropertiesService {
@@ -8,24 +14,46 @@ export class PropertiesService {
 
   constructor(
     private readonly mongoDb: MongoDatabaseService,
-    private readonly auditLogsService: AuditLogsService
+    private readonly auditLogsService: AuditLogsService,
+    private readonly usersService: UsersService,
+    private readonly cloudinaryService: CloudinaryService
   ) { }
 
-  async create(data: any): Promise<any> {
-    console.log('Creating property with data:', data);
-    const created = await this.mongoDb.create(this.collection, data);
+  async create(createPropertyDto: any): Promise<any> {
+    console.log('Creating property with data:', createPropertyDto);
+
+    // Validate owner
+    if (createPropertyDto.ownerId) {
+      const owner = await this.usersService.findOne(createPropertyDto.ownerId);
+      if (!owner) {
+        throw new NotFoundException(`Owner with ID ${createPropertyDto.ownerId} not found`);
+      }
+      if (owner.role !== 'owner') {
+        throw new ConflictException(`User with ID ${createPropertyDto.ownerId} is not an owner`);
+      }
+    }
+
+    const created = await this.mongoDb.create(this.collection, createPropertyDto);
 
     // Audit Log
     await this.auditLogsService.create({
-      userId: data.ownerId,
+      userId: createPropertyDto.ownerId,
       action: 'CREATE_PROPERTY',
       entityType: 'property',
       entityId: created.id,
-      details: { name: data.name },
+      details: { name: createPropertyDto.name },
       createdAt: new Date()
     });
 
     return created;
+  }
+
+  async uploadImages(files: Array<Express.Multer.File>): Promise<string[]> {
+    const uploadPromises = files.map((file) =>
+      this.cloudinaryService.uploadImage(file.buffer, file.originalname, file.mimetype)
+    );
+    const uploadedUrls = await Promise.all(uploadPromises);
+    return uploadedUrls.filter((url): url is string => url !== null);
   }
 
   async findAll(ownerId?: string, managerId?: string, page = 1, limit = 10): Promise<any> {
@@ -61,16 +89,16 @@ export class PropertiesService {
     return item;
   }
 
-  async update(id: string, data: any): Promise<any> {
+  async update(id: string, updatePropertyDto: any): Promise<any> {
     // Check if property exists
     const existing = await this.mongoDb.findOne(this.collection, id);
     if (!existing) {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
-    console.log('Updating property with data:', data);
+    console.log('Updating property with data:', updatePropertyDto);
 
-    const updated = await this.mongoDb.update(this.collection, id, data);
+    const updated = await this.mongoDb.update(this.collection, id, updatePropertyDto);
 
     if (!updated) {
       throw new NotFoundException(`Property with ID ${id} not found`);
@@ -82,7 +110,7 @@ export class PropertiesService {
       action: 'UPDATE_PROPERTY',
       entityType: 'property',
       entityId: id,
-      details: { updates: Object.keys(data) },
+      details: { updates: Object.keys(updatePropertyDto) },
       createdAt: new Date()
     });
 

@@ -38,7 +38,7 @@ export class ApartmentsController {
 
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiBearerAuth()
   @UseInterceptors(
     FilesInterceptor('images', 5, {
@@ -119,7 +119,7 @@ export class ApartmentsController {
 
   @Put(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiBearerAuth()
   @UseInterceptors(
     FilesInterceptor('images', 5, {
@@ -180,7 +180,7 @@ export class ApartmentsController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(UserRole.ADMIN, UserRole.OWNER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Delete an apartment listing' })
   @ApiParam({ name: 'id', description: 'Apartment ID' })

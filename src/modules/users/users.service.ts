@@ -59,8 +59,10 @@ export class UsersService {
 
     // Role-based creation restrictions
     if (creatorUserId) {
+      console.log('Checking creator permissions for:', creatorUserId);
       const creator = await this.mongoDb.findOne(this.collectionName, creatorUserId);
       if (!creator) {
+        console.error('Creator not found:', creatorUserId);
         throw new ConflictException('Creator user not found');
       }
 

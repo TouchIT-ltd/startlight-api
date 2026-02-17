@@ -7,6 +7,8 @@ import {
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { CloudinaryService } from '../../shared/services/cloudinary.service';
 
+import { UsersService } from '../users/users.service';
+
 @Injectable()
 export class ApartmentsService {
   private readonly collection = 'apartments';
@@ -14,6 +16,7 @@ export class ApartmentsService {
   constructor(
     private readonly mongoDb: MongoDatabaseService,
     private readonly cloudinaryService: CloudinaryService,
+    private readonly usersService: UsersService
   ) { }
 
   async uploadImages(files: Array<Express.Multer.File>): Promise<string[]> {
@@ -62,6 +65,17 @@ export class ApartmentsService {
 
   async create(data: any, files?: Array<Express.Multer.File>): Promise<any> {
     console.log('Creating apartment with data:', data);
+
+    // Validate owner
+    if (data.ownerId) {
+      const owner = await this.usersService.findOne(data.ownerId);
+      if (!owner) {
+        throw new NotFoundException(`Owner with ID ${data.ownerId} not found`);
+      }
+      if (owner.role !== 'owner') {
+        throw new ConflictException(`User with ID ${data.ownerId} is not an owner`);
+      }
+    }
 
     let images = data.images || [];
 

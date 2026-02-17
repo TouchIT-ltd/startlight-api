@@ -24,26 +24,28 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
+import { Public } from '../../shared/decorators/public.decorator';
 
 @Controller('auth')
 @ApiTags('Authentication')
 export class AuthController {
   constructor(private readonly authService: AuthService) { }
 
+  @Public()
   @Post('register')
   @UseInterceptors(
     FileInterceptor('ninSlip', {
       storage: memoryStorage(),
       fileFilter: (req, file, callback) => {
         // Allow common image types and PDFs for NIN slips
-        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|pdf)$/)) {
-          return callback(
-            new Error(
-              'Only image files (jpg, jpeg, png, webp) or PDF are allowed!',
-            ),
-            false,
-          );
-        }
+        // if (!file.mimetype.match(/\/(jpg|jpeg|png|webp|pdf)$/)) {
+        //   return callback(
+        //     new Error(
+        //       'Only image files (jpg, jpeg, png, webp) or PDF are allowed!',
+        //     ),
+        //     false,
+        //   );
+        // }
         callback(null, true);
       },
       limits: {
@@ -64,9 +66,17 @@ export class AuthController {
     @Body() createUserDto: CreateUserDto,
     @UploadedFile() file?: Express.Multer.File,
   ) {
-    return this.authService.register(createUserDto, file);
+    console.log('Register DTO Keys:', Object.keys(createUserDto));
+    console.log('Register DTO Values:', createUserDto);
+    try {
+      return await this.authService.register(createUserDto, file);
+    } catch (e) {
+      console.error('Registration Error:', e);
+      throw e;
+    }
   }
 
+  @Public()
   @Post('login')
   @ApiOperation({ summary: 'Login user' })
   @ApiResponse({ status: 200, description: 'User logged in with access token' })
@@ -74,6 +84,7 @@ export class AuthController {
     return this.authService.login(loginDto);
   }
 
+  @Public()
   @Post('verify-otp')
   @ApiOperation({ summary: 'Verify OTP (for signup or password reset)' })
   @ApiResponse({ status: 200, description: 'OTP verified successfully' })
@@ -81,6 +92,7 @@ export class AuthController {
     return this.authService.verifyOtp(verifyOtpDto);
   }
 
+  @Public()
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset' })
   @ApiResponse({ status: 200, description: 'OTP sent for password reset' })
@@ -88,6 +100,7 @@ export class AuthController {
     return this.authService.forgotPassword(forgotPasswordDto);
   }
 
+  @Public()
   @Post('reset-password')
   @ApiOperation({ summary: 'Reset password' })
   @ApiResponse({ status: 200, description: 'Password reset successful' })

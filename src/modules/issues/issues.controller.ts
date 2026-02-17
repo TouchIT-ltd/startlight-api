@@ -25,9 +25,11 @@ import {
   ApiBearerAuth,
 } from '@nestjs/swagger';
 
+import { RolesGuard } from '../../shared/guards/roles.guard';
+
 @ApiBearerAuth()
 @Controller('issues')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, RolesGuard)
 export class IssuesController {
   constructor(private readonly issuesService: IssuesService) { }
 

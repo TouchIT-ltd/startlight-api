@@ -1,4 +1,5 @@
 import { IsString, IsNumber, IsIn, IsOptional, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateUnitDto {
@@ -27,6 +28,10 @@ export class CreateUnitDto {
     description: 'Monthly rent price',
     example: 1200,
   })
+  @Transform(({ value }) => {
+    const num = Number(value);
+    return isNaN(num) ? value : num;
+  })
   @IsNumber()
   @Min(0)
   price!: number;
@@ -34,6 +39,10 @@ export class CreateUnitDto {
   @ApiProperty({
     description: 'Lease duration in months',
     example: 12,
+  })
+  @Transform(({ value }) => {
+    const num = Number(value);
+    return isNaN(num) ? value : num;
   })
   @IsNumber()
   @Min(1)
@@ -43,6 +52,10 @@ export class CreateUnitDto {
     description: 'Number of bedrooms',
     example: 2,
   })
+  @Transform(({ value }) => {
+    const num = Number(value);
+    return isNaN(num) ? value : num;
+  })
   @IsNumber()
   @Min(0)
   bedrooms!: number;
@@ -50,6 +63,10 @@ export class CreateUnitDto {
   @ApiProperty({
     description: 'Number of bathrooms',
     example: 1,
+  })
+  @Transform(({ value }) => {
+    const num = Number(value);
+    return isNaN(num) ? value : num;
   })
   @IsNumber()
   @Min(0)
@@ -71,4 +88,11 @@ export class CreateUnitDto {
   @IsOptional()
   @IsString()
   tenantId?: string;
+  @ApiPropertyOptional({
+    description: 'Unit image URL',
+    type: String,
+  })
+  @IsOptional()
+  @IsString()
+  image?: string;
 }

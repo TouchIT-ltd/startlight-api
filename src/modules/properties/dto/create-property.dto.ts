@@ -1,4 +1,5 @@
 import { IsString, IsNumber, IsOptional, Min, IsArray } from 'class-validator';
+
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreatePropertyDto {
@@ -27,6 +28,7 @@ export class CreatePropertyDto {
     description: 'Total number of units in the property',
     example: 50,
   })
+
   @IsNumber()
   @Min(1)
   totalUnits!: number;
@@ -47,8 +49,7 @@ export class CreatePropertyDto {
   managerId?: string;
 
   @ApiPropertyOptional({
-    description: 'Array of image URLs for the property',
-    example: ['https://res.cloudinary.com/demo/image/upload/v1234567890/properties/property1.jpg'],
+    description: 'Array of image URLs',
     type: [String],
   })
   @IsOptional()

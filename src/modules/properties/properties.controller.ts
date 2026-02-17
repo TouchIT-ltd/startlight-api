@@ -9,7 +9,11 @@ import {
   Query,
   Put,
   UseGuards,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { PropertiesService } from './properties.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { PropertyResponseDto } from './dto/property-response.dto';
@@ -25,6 +29,8 @@ import {
   ApiParam,
   ApiQuery,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 
 @ApiBearerAuth()
@@ -33,13 +39,66 @@ import {
 export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) { }
 
+  @Post('upload')
+  @Roles(UserRole.MANAGER)
+  @ApiTags('Manager Portal')
+  @ApiOperation({
+    summary: 'Upload property images',
+    description: 'Access: MANAGER only - Upload images and get URLs back to use in property creation'
+  })
+  @UseInterceptors(
+    FilesInterceptor('files', 5, {
+      storage: memoryStorage(),
+      fileFilter: (req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return callback(
+            new Error('Only image files (jpg, jpeg, png, webp) are allowed!'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024,
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Property images'
+        },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Images uploaded successfully',
+    schema: {
+      type: 'object',
+      properties: {
+        urls: { type: 'array', items: { type: 'string' } },
+      },
+    },
+  })
+  async uploadImages(@UploadedFiles() files: Array<Express.Multer.File>) {
+    const urls = await this.propertiesService.uploadImages(files);
+    return { urls };
+  }
+
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.OWNER)
-  @ApiTags('Admin Portal', 'Owner Portal')
+  @Roles(UserRole.MANAGER)
+  @ApiTags('Manager Portal')
   @ApiOperation({
     summary: 'Create a new property',
-    description: 'Access: ADMIN, OWNER only - Create property listing'
+    description: 'Access: MANAGER only - Create property listing'
   })
+  @ApiBody({ type: CreatePropertyDto })
   @ApiResponse({
     status: 201,
     description: 'Property created successfully',
@@ -90,25 +149,29 @@ export class PropertiesController {
   }
 
   @Put(':id')
-  @Roles(UserRole.ADMIN, UserRole.OWNER)
-  @ApiTags('Admin Portal', 'Owner Portal')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Manager Portal')
   @ApiOperation({
     summary: 'Update an existing property',
     description: 'Access: ADMIN, OWNER only - Update property information'
   })
   @ApiParam({ name: 'id', description: 'Property ID' })
+  @ApiBody({ type: CreatePropertyDto })
   @ApiResponse({
     status: 200,
     description: 'Property updated',
     type: PropertyResponseDto,
   })
-  async update(@Param('id') id: string, @Body() updatePropertyDto: CreatePropertyDto) {
+  async update(
+    @Param('id') id: string,
+    @Body() updatePropertyDto: CreatePropertyDto,
+  ) {
     return this.propertiesService.update(id, updatePropertyDto);
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.OWNER)
-  @ApiTags('Admin Portal', 'Owner Portal')
+  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Manager Portal')
   @ApiOperation({
     summary: 'Delete a property',
     description: 'Access: ADMIN, OWNER only - Delete property listing'

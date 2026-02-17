@@ -15,6 +15,10 @@ export class CreateApartmentDto {
   @IsString()
   title!: string;
 
+  @ApiProperty({ example: '507f1f77bcf86cd799439012', description: 'ID of the owner' })
+  @IsString()
+  ownerId!: string;
+
   @ApiPropertyOptional({ example: 'A lovely apartment with natural light' })
   @IsOptional()
   @IsString()

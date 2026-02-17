@@ -9,7 +9,11 @@ import {
   Query,
   Put,
   UseGuards,
+  UseInterceptors,
+  UploadedFile,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { UnitsService } from './units.service';
 import { CreateUnitDto } from './dto/create-unit.dto';
 import { UnitResponseDto } from './dto/unit-response.dto';
@@ -25,6 +29,8 @@ import {
   ApiParam,
   ApiQuery,
   ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
 } from '@nestjs/swagger';
 
 @ApiBearerAuth()
@@ -40,13 +46,56 @@ export class UnitsController {
     summary: 'Create a new unit',
     description: 'Access: ADMIN, OWNER, MANAGER - Create unit within property'
   })
+  @UseInterceptors(
+    FileInterceptor('image', {
+      storage: memoryStorage(),
+      fileFilter: (req, file, callback) => {
+        if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
+          return callback(
+            new Error('Only image files (jpg, jpeg, png, webp) are allowed!'),
+            false,
+          );
+        }
+        callback(null, true);
+      },
+      limits: {
+        fileSize: 5 * 1024 * 1024, // 5MB limit
+      },
+    }),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        propertyId: { type: 'string', example: '507f1f77bcf86cd799439012' },
+        unitNumber: { type: 'string', example: 'A101' },
+        description: { type: 'string', example: 'Spacious 2BR' },
+        price: { type: 'number', example: 1200 },
+        duration: { type: 'number', example: 12 },
+        bedrooms: { type: 'number', example: 2 },
+        bathrooms: { type: 'number', example: 1 },
+        status: { type: 'string', enum: ['vacant', 'occupied', 'maintenance'], example: 'vacant' },
+        tenantId: { type: 'string', example: '507f1f77bcf86cd799439013' },
+        image: {
+          type: 'string',
+          format: 'binary',
+          description: 'Unit Image (Required)'
+        },
+      },
+      required: ['propertyId', 'unitNumber', 'price', 'duration', 'image'],
+    },
+  })
   @ApiResponse({
     status: 201,
     description: 'Unit created successfully',
     type: UnitResponseDto,
   })
-  async create(@Body() createUnitDto: CreateUnitDto) {
-    return this.unitsService.create(createUnitDto);
+  async create(
+    @Body() createUnitDto: CreateUnitDto,
+    @UploadedFile() file: Express.Multer.File,
+  ) {
+    return this.unitsService.create(createUnitDto, file);
   }
 
   @Get()
