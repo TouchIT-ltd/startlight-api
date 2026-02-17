@@ -7,7 +7,7 @@ import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger';
 import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import * as compression from 'compression';
+// import * as compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -15,7 +15,7 @@ async function bootstrap() {
 
   // Security
   app.use(helmet());
-  app.use(compression);
+  // app.use(compression);
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
   app.use(express.json({ limit: '50mb' }));
 
