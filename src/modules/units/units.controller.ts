@@ -40,11 +40,11 @@ export class UnitsController {
   constructor(private readonly unitsService: UnitsService) { }
 
   @Post()
-  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
-  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
+  @Roles(UserRole.MANAGER)
+  @ApiTags('Manager Portal')
   @ApiOperation({
     summary: 'Create a new unit',
-    description: 'Access: ADMIN, OWNER, MANAGER - Create unit within property'
+    description: 'Access: MANAGER only - Create unit within property'
   })
   @UseInterceptors(
     FileInterceptor('image', {
