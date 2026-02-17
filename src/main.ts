@@ -1,30 +1,30 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import helmet from 'helmet';
-import * as express from 'express';
+// import helmet from 'helmet';
+// import * as express from 'express';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger';
 import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
-import * as compression from 'compression';
+// import * as compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const configService = app.get(ConfigService);
 
   // Security
-  app.use(helmet());
-  app.use(compression);
-  app.use(helmet());
-  app.use(express.urlencoded({ extended: true, limit: '50mb' }));
-  app.use(express.json({ limit: '50mb' }));
+  // app.use(helmet());
+  // app.use(compression);
+  // app.use(helmet());
+  // app.use(express.urlencoded({ extended: true, limit: '50mb' }));
+  // app.use(express.json({ limit: '50mb' }));
 
   // CORS
-  app.enableCors({
-    origin: configService.get('config.app.frontendUrl'),
-    credentials: true,
-  });
+  // app.enableCors({
+  //   origin: configService.get('config.app.frontendUrl'),
+  //   credentials: true,
+  // });
   // Serve static files
   app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
   // Global prefix
