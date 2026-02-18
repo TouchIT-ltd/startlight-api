@@ -58,4 +58,13 @@ export class ManagerDashboardDto {
     },
   })
   monthlyStats!: Record<string, number>;
+
+  @ApiProperty({
+    description: "Owners related to this manager's properties",
+    example: [
+      { id: 'owner_1', fullname: 'Alice Owner' },
+      { id: 'owner_2', fullname: 'Bob Owner' },
+    ],
+  })
+  owners!: Array<{ id: string; fullname: string }>;
 }

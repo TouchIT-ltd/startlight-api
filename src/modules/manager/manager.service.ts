@@ -46,6 +46,13 @@ export class ManagerService {
       november: 0,
       december: 0,
     };
+    // Fetch owners for these properties
+    const ownerIds = Array.from(new Set(properties.map((p: any) => p.ownerId).filter(Boolean)));
+    let ownersList: Array<{ id: string; fullname: string }> = [];
+    if (ownerIds.length > 0) {
+      const owners = await this.mongoDb.findAll('users', { id: { $in: ownerIds } });
+      ownersList = owners.map((o: any) => ({ id: o.id, fullname: o.fullname }));
+    }
 
     return {
       totalProperties: properties.length,
@@ -57,6 +64,16 @@ export class ManagerService {
       rentCollected,
       rentArrears,
       monthlyStats,
+      owners: ownersList,
     };
+  }
+
+  async getOwners(managerId: string): Promise<Array<{ id: string; fullname: string }>> {
+    const properties = await this.mongoDb.findAll('properties', { managerId });
+    const ownerIds = Array.from(new Set(properties.map((p: any) => p.ownerId).filter(Boolean)));
+    if (ownerIds.length === 0) return [];
+
+    const owners = await this.mongoDb.findAll('users', { id: { $in: ownerIds } });
+    return owners.map((o: any) => ({ id: o.id, fullname: o.fullname }));
   }
 }

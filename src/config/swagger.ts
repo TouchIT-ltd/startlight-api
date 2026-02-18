@@ -12,9 +12,21 @@ export function setupSwagger(app: INestApplication): void {
     .addBearerAuth()
     .addTag('auth', 'Authentication endpoints')
     .addTag('users', 'User management endpoints')
+    .addTag('Manager Portal', 'Manager Portal endpoints')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
+  // Ensure 'Manager Portal' tag does not appear first in Swagger UI.
+  // Some Swagger UIs display tags in the order found in `document.tags`.
+  // If 'Manager Portal' exists, move it to the end of the tags array so
+  // it won't be shown as the first section.
+  if (document.tags && Array.isArray(document.tags)) {
+    const idx = document.tags.findIndex((t: any) => t.name === 'Manager Portal');
+    if (idx > -1) {
+      const [mgr] = document.tags.splice(idx, 1);
+      document.tags.push(mgr);
+    }
+  }
   SwaggerModule.setup('api-docs', app, document, {
     swaggerOptions: {
       persistAuthorization: true,
