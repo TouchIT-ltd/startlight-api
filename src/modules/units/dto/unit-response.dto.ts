@@ -64,6 +64,13 @@ export class UnitResponseDto {
   tenantId?: string;
 
   @ApiProperty({
+    description: 'Current tenant details with lease information (populated when available)',
+    required: false,
+    example: { id: '507f1f77bcf86cd799439013', fullName: 'John Doe', leaseStart: '2025-01-01', leaseEnd: '2026-01-01' },
+  })
+  currentTenant?: { id: string; fullName: string; leaseStart?: string; leaseEnd?: string } | null;
+
+  @ApiProperty({
     description: 'Creation timestamp',
     example: '2024-01-15T10:30:00.000Z',
   })

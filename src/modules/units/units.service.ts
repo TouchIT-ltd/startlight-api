@@ -75,8 +75,54 @@ export class UnitsService {
       this.mongoDb.count(this.collection, filter),
     ]);
 
+    // Populate tenant details and active lease info for units that have tenantId
+    const tenantIds = Array.from(new Set(items.map((u: any) => u.tenantId).filter(Boolean)));
+    const propertyIds = Array.from(new Set(items.map((u: any) => u.propertyId).filter(Boolean)));
+
+    let tenantsById: Record<string, any> = {};
+    if (tenantIds.length > 0) {
+      const tenants = await this.mongoDb.findAll('users', { id: { $in: tenantIds } });
+      tenantsById = tenants.reduce((acc: Record<string, any>, t: any) => {
+        acc[t.id] = t;
+        return acc;
+      }, {});
+    }
+
+    // Fetch active leases matching tenantIds and relevant properties/units
+    let leasesByKey: Record<string, any> = {};
+    if (tenantIds.length > 0 && propertyIds.length > 0) {
+      const leases = await this.mongoDb.findAll('leases', {
+        userId: { $in: tenantIds },
+        propertyId: { $in: propertyIds },
+        status: 'active',
+      });
+      leasesByKey = leases.reduce((acc: Record<string, any>, l: any) => {
+        const key = `${l.userId}_${l.propertyId}_${l.unitNumber}`;
+        acc[key] = l;
+        return acc;
+      }, {});
+    }
+
+    const itemsWithTenants = items.map((u: any) => {
+      if (u.tenantId && tenantsById[u.tenantId]) {
+        const tenant = tenantsById[u.tenantId];
+        const { password, ...tenantSafe } = tenant;
+        const leaseKey = `${u.tenantId}_${u.propertyId}_${u.unitNumber}`;
+        const lease = leasesByKey[leaseKey];
+        u.currentTenant = {
+          id: tenantSafe.id,
+          fullName: tenantSafe.fullname || tenantSafe.fullName || '',
+          leaseStart: lease ? lease.startDate : undefined,
+          leaseEnd: lease ? lease.endDate : undefined,
+        };
+      } else {
+        u.currentTenant = null;
+      }
+      return u;
+    });
+
     return {
-      data: items,
+      data: itemsWithTenants,
       total,
       page,
       limit,
@@ -89,6 +135,32 @@ export class UnitsService {
     if (!item) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
+    // If unit has tenantId, populate tenant and lease info
+    if (item.tenantId) {
+      const tenant = await this.mongoDb.findOne('users', item.tenantId);
+      if (tenant) {
+        const { password, ...tenantSafe } = tenant;
+        // Try to find active lease for this tenant on this unit
+        const lease = await this.mongoDb.findOneBy('leases', {
+          userId: item.tenantId,
+          propertyId: item.propertyId,
+          unitNumber: item.unitNumber,
+          status: 'active',
+        });
+
+        item.currentTenant = {
+          id: tenantSafe.id,
+          fullName: tenantSafe.fullname || tenantSafe.fullName || '',
+          leaseStart: lease ? lease.startDate : undefined,
+          leaseEnd: lease ? lease.endDate : undefined,
+        };
+      } else {
+        item.currentTenant = null;
+      }
+    } else {
+      item.currentTenant = null;
+    }
+
     return item;
   }
 
