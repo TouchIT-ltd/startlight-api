@@ -88,6 +88,16 @@ export class UnitsService {
       }, {});
     }
 
+    // Fetch properties for these units
+    let propertiesById: Record<string, any> = {};
+    if (propertyIds.length > 0) {
+      const properties = await this.mongoDb.findAll('properties', { id: { $in: propertyIds } });
+      propertiesById = properties.reduce((acc: Record<string, any>, p: any) => {
+        acc[p.id] = p;
+        return acc;
+      }, {});
+    }
+
     // Fetch active leases matching tenantIds and relevant properties/units
     let leasesByKey: Record<string, any> = {};
     if (tenantIds.length > 0 && propertyIds.length > 0) {
@@ -104,6 +114,14 @@ export class UnitsService {
     }
 
     const itemsWithTenants = items.map((u: any) => {
+      // attach property info
+      if (u.propertyId && propertiesById[u.propertyId]) {
+        const prop = propertiesById[u.propertyId];
+        u.property = { id: prop.id, name: prop.name };
+      } else {
+        u.property = null;
+      }
+
       if (u.tenantId && tenantsById[u.tenantId]) {
         const tenant = tenantsById[u.tenantId];
         const { password, ...tenantSafe } = tenant;
@@ -112,8 +130,11 @@ export class UnitsService {
         u.currentTenant = {
           id: tenantSafe.id,
           fullName: tenantSafe.fullname || tenantSafe.fullName || '',
+          email: tenantSafe.email,
+          phone: tenantSafe.phoneNumber || tenantSafe.phone || undefined,
           leaseStart: lease ? lease.startDate : undefined,
           leaseEnd: lease ? lease.endDate : undefined,
+          leaseStatus: lease ? lease.status : undefined,
         };
       } else {
         u.currentTenant = null;
@@ -135,6 +156,14 @@ export class UnitsService {
     if (!item) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
     }
+    // attach property info
+    if (item.propertyId) {
+      const prop = await this.mongoDb.findOne('properties', item.propertyId);
+      item.property = prop ? { id: prop.id, name: prop.name } : null;
+    } else {
+      item.property = null;
+    }
+
     // If unit has tenantId, populate tenant and lease info
     if (item.tenantId) {
       const tenant = await this.mongoDb.findOne('users', item.tenantId);
@@ -151,8 +180,11 @@ export class UnitsService {
         item.currentTenant = {
           id: tenantSafe.id,
           fullName: tenantSafe.fullname || tenantSafe.fullName || '',
+          email: tenantSafe.email,
+          phone: tenantSafe.phoneNumber || tenantSafe.phone || undefined,
           leaseStart: lease ? lease.startDate : undefined,
           leaseEnd: lease ? lease.endDate : undefined,
+          leaseStatus: lease ? lease.status : undefined,
         };
       } else {
         item.currentTenant = null;

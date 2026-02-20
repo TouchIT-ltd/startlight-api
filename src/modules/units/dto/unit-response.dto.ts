@@ -64,11 +64,26 @@ export class UnitResponseDto {
   tenantId?: string;
 
   @ApiProperty({
+    description: 'Property details for this unit',
+    required: false,
+    example: { id: 'prop_123', name: 'ABG Housing' },
+  })
+  property?: { id: string; name: string } | null;
+
+  @ApiProperty({
     description: 'Current tenant details with lease information (populated when available)',
     required: false,
-    example: { id: '507f1f77bcf86cd799439013', fullName: 'John Doe', leaseStart: '2025-01-01', leaseEnd: '2026-01-01' },
+    example: {
+      id: '507f1f77bcf86cd799439013',
+      fullName: 'Sarah Smith',
+      email: 'sarah@email.com',
+      phone: '08012345678',
+      leaseStart: '2024-01-01',
+      leaseEnd: '2025-01-01',
+      leaseStatus: 'active',
+    },
   })
-  currentTenant?: { id: string; fullName: string; leaseStart?: string; leaseEnd?: string } | null;
+  currentTenant?: { id: string; fullName: string; email?: string; phone?: string; leaseStart?: string; leaseEnd?: string; leaseStatus?: string } | null;
 
   @ApiProperty({
     description: 'Creation timestamp',
