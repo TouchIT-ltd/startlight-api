@@ -117,7 +117,7 @@ export class UnitsService {
       // attach property info
       if (u.propertyId && propertiesById[u.propertyId]) {
         const prop = propertiesById[u.propertyId];
-        u.property = { id: prop.id, name: prop.name };
+        u.property = { id: prop.id, name: prop.name, address: prop.address };
       } else {
         u.property = null;
       }
@@ -159,7 +159,7 @@ export class UnitsService {
     // attach property info
     if (item.propertyId) {
       const prop = await this.mongoDb.findOne('properties', item.propertyId);
-      item.property = prop ? { id: prop.id, name: prop.name } : null;
+      item.property = prop ? { id: prop.id, name: prop.name, address: prop.address } : null;
     } else {
       item.property = null;
     }

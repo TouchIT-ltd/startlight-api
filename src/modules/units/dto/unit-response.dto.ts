@@ -66,9 +66,9 @@ export class UnitResponseDto {
   @ApiProperty({
     description: 'Property details for this unit',
     required: false,
-    example: { id: 'prop_123', name: 'ABG Housing' },
+    example: { id: 'prop_123', name: 'ABG Housing', address: '123 Main Street, Downtown' },
   })
-  property?: { id: string; name: string } | null;
+  property?: { id: string; name: string; address?: string } | null;
 
   @ApiProperty({
     description: 'Current tenant details with lease information (populated when available)',

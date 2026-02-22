@@ -18,6 +18,7 @@ import { PropertiesService } from './properties.service';
 import { CreatePropertyDto } from './dto/create-property.dto';
 import { PropertyResponseDto } from './dto/property-response.dto';
 import { PaginatedPropertiesDto } from './dto/paginated-properties.dto';
+import { PropertyTenantDto } from './dto/property-tenant.dto';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/guards/roles.guard';
 import { Roles, UserRole } from '../../shared/decorators/roles.decorator';
@@ -180,5 +181,14 @@ export class PropertiesController {
   @ApiResponse({ status: 200, description: 'Property deleted successfully' })
   async remove(@Param('id') id: string) {
     return this.propertiesService.remove(id);
+  }
+
+  @Get(':id/tenants')
+  @ApiTags('Properties')
+  @ApiResponse({ status: 200, description: 'List of tenants for the property', type: [PropertyTenantDto] })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  async getTenants(@Param('id') id: string) {
+    return this.propertiesService.getTenants(id);
   }
 }

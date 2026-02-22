@@ -89,6 +89,34 @@ export class PropertiesService {
     return item;
   }
 
+  async getTenants(propertyId: string) {
+    // find leases related to this property using public DB API
+    const leases = await this.mongoDb.findAll('leases', { propertyId }, { sort: { startDate: -1 } });
+
+    if (!leases || leases.length === 0) return [];
+
+    const tenantIds = Array.from(new Set(leases.map((l: any) => l.tenantId).filter(Boolean)));
+    const tenants = await this.mongoDb.findAll('users', { id: { $in: tenantIds } });
+    const tenantsById = new Map(tenants.map((t: any) => [t.id, t]));
+
+    // map each lease to a tenant entry
+    const result = leases.map((lease: any) => {
+      const tenant = tenantsById.get(String(lease.tenantId));
+      return {
+        id: tenant?.id || lease.tenantId,
+        fullname: tenant?.fullName || tenant?.fullname || '',
+        email: tenant?.email,
+        phone: tenant?.phone,
+        unitNumber: lease.unitNumber || lease.unit || '',
+        leaseStart: lease.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
+        leaseEnd: lease.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
+        leaseStatus: lease.status,
+      };
+    });
+
+    return result;
+  }
+
   async update(id: string, updatePropertyDto: any): Promise<any> {
     // Check if property exists
     const existing = await this.mongoDb.findOne(this.collection, id);
