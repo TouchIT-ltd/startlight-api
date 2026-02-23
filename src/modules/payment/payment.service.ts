@@ -93,7 +93,29 @@ export class PaymentService {
                     break;
 
                 case 'UNIT': // Paying for a unit (maybe deposit?)
-                    const unit = await this.mongoDb.findOne('units', resourceId);
+                    // Primary: resourceId is expected to be the unit ID
+                    let unit = await this.mongoDb.findOne('units', resourceId);
+
+                    // Fallbacks: frontend may send propertyId as resourceId and include unitNumber in metadata.
+                    // Try to locate unit by (propertyId, unitNumber) when unit lookup fails.
+                    if (!unit && metadata && metadata.unitNumber) {
+                        unit = await this.mongoDb.findOneBy('units', { propertyId: resourceId, unitNumber: metadata.unitNumber });
+                    }
+
+                    // Another fallback: unit may have already been converted to a lease (post-payment). Try finding an active lease for that property/unit.
+                    if (!unit && metadata && metadata.unitNumber) {
+                        const lease = await this.mongoDb.findOneBy('leases', { propertyId: resourceId, unitNumber: metadata.unitNumber, status: 'active' });
+                        if (lease) {
+                            // treat as lease payment
+                            amount = lease.rentAmount;
+                            resourceTitle = `Lease Payment: ${lease.unitNumber || resourceId}`;
+                            // make sure we save payment referencing the lease
+                            resourceId = lease.id ?? lease._id?.toString?.();
+                            resourceType = 'LEASE';
+                            break;
+                        }
+                    }
+
                     if (!unit) throw new NotFoundException('Unit not found');
                     amount = unit.price;
                     resourceTitle = `Unit Payment: ${unit.unitNumber}`;
@@ -187,6 +209,10 @@ export class PaymentService {
                 authorization_url: data.data.authorization_url,
                 access_code: data.data.access_code,
                 reference,
+                amount,
+                resourceId,
+                resourceType,
+                title: resourceTitle,
             };
         } catch (error: any) {
             this.logger.error(`Payment initialization error: ${error.message}`);
