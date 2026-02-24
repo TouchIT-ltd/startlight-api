@@ -20,6 +20,12 @@ export class UnitResponseDto {
   unitNumber!: string;
 
   @ApiProperty({
+    description: 'Property specification (e.g., bedrooms, bathrooms, features)',
+    example: '2 bedroom, 1 bathroom, kitchen, living room',
+  })
+  propertySpecification!: string;
+
+  @ApiProperty({
     description: 'Description of the unit',
     example: 'Spacious 2-bedroom apartment with balcony',
   })
@@ -96,4 +102,12 @@ export class UnitResponseDto {
     example: '2024-01-15T10:30:00.000Z',
   })
   updatedAt!: Date;
+
+  @ApiProperty({
+    description: 'List of amenities available in this unit',
+    example: ['Air Conditioning', 'Parking', 'Wi-Fi'],
+    type: [String],
+    required: false,
+  })
+  amenities?: string[];
 }

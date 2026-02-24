@@ -70,20 +70,22 @@ export class UnitsController {
       properties: {
         propertyId: { type: 'string', example: '507f1f77bcf86cd799439012' },
         unitNumber: { type: 'string', example: 'A101' },
-        description: { type: 'string', example: 'Spacious 2BR' },
+        propertySpecification: { type: 'string', example: '2 bedroom, 1 bathroom, balcony' },
+        description: { type: 'string', example: 'Spacious 2BR apartment with modern finishes' },
         price: { type: 'number', example: 1200 },
         duration: { type: 'number', example: 12 },
         bedrooms: { type: 'number', example: 2 },
         bathrooms: { type: 'number', example: 1 },
         status: { type: 'string', enum: ['vacant', 'occupied', 'maintenance'], example: 'vacant' },
         tenantId: { type: 'string', example: '507f1f77bcf86cd799439013' },
+        amenities: { type: 'array', items: { type: 'string' }, example: ['Air Conditioning', 'Parking', 'Wi-Fi'] },
         image: {
           type: 'string',
           format: 'binary',
           description: 'Unit Image (Required)'
         },
       },
-      required: ['propertyId', 'unitNumber', 'price', 'duration', 'image'],
+      required: ['propertyId', 'unitNumber', 'propertySpecification', 'price', 'duration', 'image'],
     },
   })
   @ApiResponse({
@@ -168,5 +170,43 @@ export class UnitsController {
   @ApiResponse({ status: 200, description: 'Unit deleted successfully' })
   async remove(@Param('id') id: string) {
     return this.unitsService.remove(id);
+  }
+
+  @Get('amenities/list')
+  @ApiTags('Tenant Portal', 'Manager Portal')
+  @ApiOperation({
+    summary: 'Get list of available amenities',
+    description: 'Get all available amenities that can be assigned to units'
+  })
+  @ApiOkResponse({
+    description: 'List of available amenities',
+    schema: {
+      type: 'object',
+      properties: {
+        amenities: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['Air Conditioning', 'Parking', 'Wi-Fi', 'Gym', 'Swimming Pool', 'Garden', 'Balcony']
+        }
+      }
+    }
+  })
+  async getAmenities() {
+    return {
+      amenities: [
+        'Air Conditioning',
+        'Parking',
+        'Wi-Fi',
+        'Gym',
+        'Swimming Pool',
+        'Garden',
+        'Balcony',
+        'Elevator',
+        'Security Gate',
+        'Laundry Facility',
+        'Kitchen Appliances',
+        'Furnished'
+      ]
+    };
   }
 }

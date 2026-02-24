@@ -18,6 +18,13 @@ export class CreateUnitDto {
   unitNumber!: string;
 
   @ApiProperty({
+    description: 'Property specification (e.g., bedrooms, bathrooms, features)',
+    example: '2 bedroom, 1 bathroom, kitchen, living room',
+  })
+  @IsString()
+  propertySpecification!: string;
+
+  @ApiProperty({
     description: 'Description of the unit',
     example: 'Spacious 2-bedroom apartment with balcony',
   })
@@ -95,4 +102,12 @@ export class CreateUnitDto {
   @IsOptional()
   @IsString()
   image?: string;
+
+  @ApiPropertyOptional({
+    description: 'List of amenities available in this unit',
+    example: ['Air Conditioning', 'Parking', 'Wi-Fi'],
+    type: [String],
+  })
+  @IsOptional()
+  amenities?: string[];
 }
