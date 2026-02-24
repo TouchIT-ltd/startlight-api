@@ -152,6 +152,29 @@ export class PropertiesService {
       throw new NotFoundException(`Property with ID ${id} not found`);
     }
 
+    // Cascade delete units that belong to this property
+    try {
+      const units = await this.mongoDb.findAll('units', { propertyId: id });
+      if (units && units.length > 0) {
+        await Promise.all(units.map((u: any) => this.mongoDb.delete('units', u.id)));
+
+        // Optionally create audit logs for deleted units
+        for (const u of units) {
+          await this.auditLogsService.create({
+            userId: existing.ownerId,
+            action: 'DELETE_UNIT_ON_PROPERTY_DELETE',
+            entityType: 'unit',
+            entityId: u.id,
+            details: { unitNumber: u.unitNumber, propertyId: id },
+            createdAt: new Date(),
+          });
+        }
+      }
+    } catch (err) {
+      // Log but don't block property deletion on cascade failure
+      // (the MongoDatabaseService already logs errors)
+    }
+
     const deleted = await this.mongoDb.delete(this.collection, id);
     if (!deleted) {
       throw new NotFoundException(`Property with ID ${id} not found`);
