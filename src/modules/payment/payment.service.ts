@@ -37,15 +37,14 @@ export class PaymentService {
 
     async initializePayment(
         userId: string,
+        email: string,
         resourceId: string,
         resourceType: string,
         metadata: any = {},
     ) {
         try {
-            // 1. Fetch User to get Email
-            const user = await this.mongoDb.findOne('users', userId);
-            if (!user) throw new BadRequestException('User not found');
-            const email = user.email;
+            // Use email from JWT token (already verified by guard)
+            // No need for database lookup of user
 
             // 2. Fetch Resource to get Amount
             let amount = 0;

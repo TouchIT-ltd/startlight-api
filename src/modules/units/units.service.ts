@@ -271,4 +271,39 @@ export class UnitsService {
 
     return { message: 'Unit deleted successfully' };
   }
+
+  async getAvailableTenants(propertyId: string): Promise<any> {
+    // Find all active leases on this property
+    const leases = await this.mongoDb.findAll('leases', {
+      propertyId,
+      status: 'active',
+    });
+
+    if (!leases || leases.length === 0) {
+      return { data: [], total: 0 };
+    }
+
+    // Extract unique tenant IDs
+    const tenantIds = Array.from(new Set(leases.map((l: any) => l.userId || l.tenantId).filter(Boolean)));
+
+    // Fetch tenant details
+    const tenants = await this.mongoDb.findAll('users', { id: { $in: tenantIds } });
+    const tenantsById = new Map(tenants.map((t: any) => [t.id, t]));
+
+    // Map leases to tenant info
+    const result = leases.map((lease: any) => {
+      const tenant = tenantsById.get(String(lease.userId || lease.tenantId));
+      return {
+        id: tenant?.id || lease.userId || lease.tenantId,
+        fullName: tenant?.fullName || tenant?.fullname || '',
+        email: tenant?.email,
+        phone: tenant?.phoneNumber || tenant?.phone,
+        leaseStart: lease.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
+        leaseEnd: lease.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
+        leaseStatus: lease.status,
+      };
+    });
+
+    return { data: result, total: result.length };
+  }
 }

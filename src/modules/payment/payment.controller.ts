@@ -37,12 +37,13 @@ export class PaymentController {
     @ApiOperation({ summary: 'Initialize a payment' })
     @ApiResponse({ status: 201, description: 'Payment initialized successfully' })
     async initializePayment(
-        @Req() req: any, // using any to avoid Request interface conflicts, manually casting if needed
+        @Req() req: any,
         @Body() initializePaymentDto: InitializePaymentDto
     ) {
         const user = req.user;
         return this.paymentService.initializePayment(
             user.id,
+            user.email,
             initializePaymentDto.resourceId,
             initializePaymentDto.resourceType,
             initializePaymentDto.metadata,
