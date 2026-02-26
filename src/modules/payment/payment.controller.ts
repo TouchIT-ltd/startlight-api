@@ -92,9 +92,8 @@ export class PaymentController {
     }
 
     @Post('webhook')
-    @ApiTags('System')
-    @ApiOperation({ summary: 'Paystack Webhook' })
     @HttpCode(HttpStatus.OK)
+    @ApiOperation({ summary: 'Paystack Webhook', tags: ['System'] })
     async handleWebhook(
         @Headers('x-paystack-signature') signature: string,
         @Body() payload: any,
