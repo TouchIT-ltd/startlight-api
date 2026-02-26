@@ -14,7 +14,7 @@ import {
     ParseIntPipe,
 } from '@nestjs/common';
 import { PaymentService } from './payment.service';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiQuery, ApiParam } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { InitializePaymentDto } from './dto/initialize-payment.dto';
 
@@ -83,7 +83,8 @@ export class PaymentController {
     @UseGuards(JwtAuthGuard)
     @ApiBearerAuth()
     @ApiTags('Admin Portal', 'Tenant Portal')
-    @ApiOperation({ summary: 'Get a payment by ID' })
+    @ApiOperation({ summary: 'Get a payment by database ID or reference' })
+    @ApiParam({ name: 'id', description: 'Either the MongoDB document ID or the payment reference returned during initialization' })
     @ApiResponse({ status: 200, description: 'Return a payment' })
     @ApiResponse({ status: 404, description: 'Payment not found' })
     async findOne(@Req() req: any, @Param('id') id: string) {

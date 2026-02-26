@@ -239,17 +239,22 @@ export class PaymentService {
                 throw new BadRequestException('Payment verification failed');
             }
 
-            if (data.data.status === 'success') {
-                const payment = await this.mongoDb.findOneBy(this.collectionName, { reference });
+            // Attempt to update local record regardless of success so we keep track of aborted/failed payments
+            const payment = await this.mongoDb.findOneBy(this.collectionName, { reference });
 
-                if (payment && payment.status !== 'SUCCESS') {
-                    await this.mongoDb.update(this.collectionName, payment.id, {
-                        status: 'SUCCESS',
-                        paidAt: new Date(),
-                        gatewayResponse: data.data,
-                    });
+            if (payment) {
+                const newStatus = data.data.status?.toUpperCase() || payment.status;
+                const updatePayload: any = { gatewayResponse: data.data };
+
+                if (newStatus === 'SUCCESS' && payment.status !== 'SUCCESS') {
+                    updatePayload.status = 'SUCCESS';
+                    updatePayload.paidAt = new Date();
+                } else if (newStatus !== 'SUCCESS' && payment.status === 'PENDING') {
+                    // mark as abandoned or failed so that frontend can reflect it
+                    updatePayload.status = newStatus;
                 }
-                return data.data;
+
+                await this.mongoDb.update(this.collectionName, payment.id, updatePayload);
             }
 
             return data.data;
@@ -361,12 +366,20 @@ export class PaymentService {
         };
     }
 
-    async findOne(id: string, userId?: string, role?: string) {
-        const payment = await this.mongoDb.findOne(this.collectionName, id);
+    async findOne(idOrReference: string, userId?: string, role?: string) {
+        // try to locate by database id first
+        let payment = await this.mongoDb.findOne(this.collectionName, idOrReference);
+
+        // if not found by id, try by reference (frontend often has reference available)
+        if (!payment) {
+            payment = await this.mongoDb.findOneBy(this.collectionName, { reference: idOrReference });
+        }
+
         if (!payment) {
             throw new BadRequestException('Payment not found');
         }
 
+        // enforce visibility rules
         if (role !== 'admin' && role !== 'owner' && payment.userId !== userId) {
             throw new UnauthorizedException('Unauthorized access to this payment');
         }
