@@ -10,9 +10,9 @@ import {
   Put,
   UseGuards,
   UseInterceptors,
-  UploadedFile,
+  UploadedFiles,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { UnitsService } from './units.service';
 import { CreateUnitDto } from './dto/create-unit.dto';
@@ -44,10 +44,10 @@ export class UnitsController {
   @ApiTags('Manager Portal')
   @ApiOperation({
     summary: 'Create a new unit',
-    description: 'Access: MANAGER only - Create unit within property'
+    description: 'Access: MANAGER only - Create unit within property with multiple images'
   })
   @UseInterceptors(
-    FileInterceptor('image', {
+    FilesInterceptor('images', 10, {
       storage: memoryStorage(),
       fileFilter: (req, file, callback) => {
         if (!file.mimetype.match(/\/(jpg|jpeg|png|webp)$/)) {
@@ -59,7 +59,7 @@ export class UnitsController {
         callback(null, true);
       },
       limits: {
-        fileSize: 5 * 1024 * 1024, // 5MB limit
+        fileSize: 5 * 1024 * 1024, // 5MB per file
       },
     }),
   )
@@ -79,13 +79,13 @@ export class UnitsController {
         status: { type: 'string', enum: ['vacant', 'occupied', 'maintenance'], example: 'vacant' },
         tenantId: { type: 'string', example: '507f1f77bcf86cd799439013' },
         amenities: { type: 'array', items: { type: 'string' }, example: ['Air Conditioning', 'Parking', 'Wi-Fi'] },
-        image: {
-          type: 'string',
-          format: 'binary',
-          description: 'Unit Image (Required)'
+        images: {
+          type: 'array',
+          items: { type: 'string', format: 'binary' },
+          description: 'Unit Images (Multiple images accepted, up to 10)'
         },
       },
-      required: ['propertyId', 'unitNumber', 'propertySpecification', 'price', 'duration', 'image'],
+      required: ['propertyId', 'unitNumber', 'propertySpecification', 'price', 'duration', 'images'],
     },
   })
   @ApiResponse({
@@ -95,9 +95,9 @@ export class UnitsController {
   })
   async create(
     @Body() createUnitDto: CreateUnitDto,
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
-    return this.unitsService.create(createUnitDto, file);
+    return this.unitsService.create(createUnitDto, files);
   }
 
   @Get()

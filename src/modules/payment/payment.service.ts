@@ -12,6 +12,8 @@ import { randomBytes, createHmac } from 'crypto';
 import fetch from 'node-fetch';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { LeasesService } from '../leases/leases.service';
+import { UnitsService } from '../units/units.service';
 
 @Injectable()
 export class PaymentService {
@@ -23,6 +25,8 @@ export class PaymentService {
         private readonly mongoDb: MongoDatabaseService,
         private readonly auditLogsService: AuditLogsService,
         private readonly notificationsService: NotificationsService,
+        private readonly leasesService: LeasesService,
+        private readonly unitsService: UnitsService,
     ) { }
 
     public generatePaymentReference(prefix = 'STARLIGHT'): string {
@@ -314,19 +318,67 @@ export class PaymentService {
 
                     // Propagate to Rent Request if applicable
                     if (payment.resourceType === 'RENT_REQUEST') {
-                        await this.mongoDb.update('rent-requests', payment.resourceId, {
-                            isPaid: true,
-                            paidAt: new Date(),
-                            status: 'paid'
-                        });
-                        // If logic requires, auto-generate lease here or notify manager
-                        await this.notificationsService.create({
-                            userId: payment.userId,
-                            title: 'Rent Request Paid',
-                            message: 'Your rent request is marked as paid.',
-                            type: 'RENT_PAID',
-                            entityId: payment.resourceId,
-                        });
+                        const rentRequest = await this.mongoDb.findOne('rent-requests', payment.resourceId);
+                        if (rentRequest) {
+                            await this.mongoDb.update('rent-requests', payment.resourceId, {
+                                isPaid: true,
+                                paidAt: new Date(),
+                                status: 'paid'
+                            });
+
+                            // Create lease automatically when a rent request is paid
+                            try {
+                                // Fetch unit linked to this rent request
+                                const unit = await this.mongoDb.findOne('units', rentRequest.unitId);
+                                if (unit) {
+                                    const now = new Date();
+                                    const startDate = now.toISOString().split('T')[0];
+                                    const end = new Date(now);
+                                    end.setFullYear(end.getFullYear() + 1); // default 12-month lease
+                                    const endDate = end.toISOString().split('T')[0];
+
+                                    const leaseData: any = {
+                                        userId: rentRequest.userId,
+                                        propertyId: unit.propertyId,
+                                        unitNumber: unit.unitNumber,
+                                        startDate,
+                                        endDate,
+                                        rentAmount: rentRequest.amount || unit.price,
+                                        status: 'active',
+                                    };
+
+                                    const createdLease = await this.leasesService.create(leaseData);
+
+                                    // Mark unit as occupied and link tenant
+                                    await this.unitsService.update(unit.id, {
+                                        status: 'occupied',
+                                        tenantId: rentRequest.userId,
+                                    });
+
+                                    // Cancel other pending rent requests for this unit
+                                    await this.mongoDb.updateMany('rent-requests', { unitId: unit.id, status: 'pending' }, { status: 'cancelled' });
+
+                                    await this.notificationsService.create({
+                                        userId: rentRequest.userId,
+                                        title: 'Lease Created',
+                                        message: `Lease created for unit ${unit.unitNumber}.`,
+                                        type: 'LEASE_CREATED',
+                                        entityId: createdLease.id,
+                                    });
+                                } else {
+                                    // If unit not found, just notify
+                                    await this.notificationsService.create({
+                                        userId: rentRequest.userId,
+                                        title: 'Rent Request Paid',
+                                        message: 'Your rent request is marked as paid. Unit information could not be resolved to auto-create a lease.',
+                                        type: 'RENT_PAID',
+                                        entityId: payment.resourceId,
+                                    });
+                                }
+                            } catch (err) {
+                                this.logger.error('Failed to auto-create lease after payment: ' + String(err));
+                            }
+                        }
                     }
 
                 } else {

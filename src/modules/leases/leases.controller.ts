@@ -147,8 +147,9 @@ export class LeasesController {
     description: 'User lease found',
     type: LeaseResponseDto,
   })
-  async findMyLease(@Query('userId') userId: string) {
-    return this.leasesService.findMyLease(userId);
+  async findMyLease(@Request() req: any, @Query('userId') userId?: string) {
+    const uid = userId || req.user?.id;
+    return this.leasesService.findMyLease(uid);
   }
 
   @Put(':id')

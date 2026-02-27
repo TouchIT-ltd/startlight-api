@@ -15,20 +15,27 @@ export class UnitsService {
     private readonly usersService: UsersService
   ) { }
 
-  async create(data: any, file?: Express.Multer.File): Promise<any> {
+  async create(data: any, files?: Array<Express.Multer.File>): Promise<any> {
     console.log('Creating unit with data:', data);
 
     // Mandate file upload
-    if (!file) {
-      throw new ConflictException('Unit image is required');
+    if (!files || files.length === 0) {
+      throw new ConflictException('Unit images are required (at least one)');
     }
 
-    // Upload image
-    const imageUrl = await this.cloudinaryService.uploadImage(file.buffer, file.originalname, file.mimetype);
-    if (!imageUrl) {
-      throw new ConflictException('Failed to upload unit image');
+    // Upload all images and collect URLs
+    const imageUrls: string[] = [];
+    for (const file of files) {
+      const imageUrl = await this.cloudinaryService.uploadImage(file.buffer, file.originalname, file.mimetype);
+      if (!imageUrl) {
+        throw new ConflictException(`Failed to upload image: ${file.originalname}`);
+      }
+      imageUrls.push(imageUrl);
     }
-    data.image = imageUrl;
+
+    // Store as array of images or single primary image + gallery
+    data.images = imageUrls;
+    data.image = imageUrls[0]; // Primary image is the first one for backward compatibility
 
     // Check if unit number already exists for this property
     const existingUnit = await this.mongoDb.findOneBy(this.collection, {
@@ -50,7 +57,7 @@ export class UnitsService {
         action: 'CREATE_UNIT',
         entityType: 'unit',
         entityId: created.id,
-        details: { unitNumber: data.unitNumber, propertyId: data.propertyId },
+        details: { unitNumber: data.unitNumber, propertyId: data.propertyId, imageCount: imageUrls.length },
         createdAt: new Date()
       });
     }

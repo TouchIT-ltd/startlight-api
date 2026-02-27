@@ -93,11 +93,11 @@ export class PropertiesController {
   }
 
   @Post()
-  @Roles(UserRole.MANAGER)
-  @ApiTags('Manager Portal')
+  @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Create a new property',
-    description: 'Access: MANAGER only - Create property listing'
+    description: 'Access: ADMIN only - Create property and assign manager/owner'
   })
   @ApiBody({ type: CreatePropertyDto })
   @ApiResponse({
@@ -154,7 +154,7 @@ export class PropertiesController {
   @ApiTags('Admin Portal', 'Manager Portal')
   @ApiOperation({
     summary: 'Update an existing property',
-    description: 'Access: ADMIN, OWNER only - Update property information'
+    description: 'Access: ADMIN, MANAGER - Update property information'
   })
   @ApiParam({ name: 'id', description: 'Property ID' })
   @ApiBody({ type: CreatePropertyDto })

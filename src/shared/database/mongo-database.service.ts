@@ -176,6 +176,18 @@ export class MongoDatabaseService implements OnModuleInit {
     }
   }
 
+  // Update many documents matching a filter
+  async updateMany(collectionName: string, filter: any, update: any): Promise<any> {
+    try {
+      const Model = this.getModel(collectionName);
+      const res = await Model.updateMany(filter, { ...update, updatedAt: new Date() }).exec();
+      return res;
+    } catch (error) {
+      this.logger.error(`Error updating many in ${collectionName}:`, error);
+      throw error;
+    }
+  }
+
   // Generate unique ID (fallback if not provided)
   private generateId(): string {
     return `mongo_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
