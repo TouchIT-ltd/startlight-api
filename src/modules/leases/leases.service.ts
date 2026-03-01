@@ -121,10 +121,20 @@ export class LeasesService {
   }
 
   async findMyLease(userId: string): Promise<any> {
-    const item = await this.mongoDb.findOneBy(this.collection, { userId });
-    if (!item) {
-      throw new NotFoundException(`No lease found for user ${userId}`);
+    if (!userId) {
+      throw new NotFoundException('User id is required to find lease');
     }
+
+    // Support leases that reference the tenant as either `userId` or `tenantId`.
+    const item = await this.mongoDb.findOneBy(this.collection, {
+      $or: [{ userId }, { tenantId: userId }],
+      status: 'active',
+    });
+
+    if (!item) {
+      throw new NotFoundException(`No active lease found for user ${userId}`);
+    }
+
     return item;
   }
 

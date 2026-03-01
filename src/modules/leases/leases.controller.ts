@@ -147,7 +147,16 @@ export class LeasesController {
     description: 'User lease found',
     type: LeaseResponseDto,
   })
-  async findMyLease(@Request() req: any, @Query('userId') userId?: string) {
+  async findMyLease(
+    @Request() req: any,
+    @Query('leaseId') leaseId?: string,
+    @Query('userId') userId?: string,
+  ) {
+    // If a leaseId is provided, return by lease id
+    if (leaseId) {
+      return this.leasesService.findOne(leaseId);
+    }
+
     const uid = userId || req.user?.id;
     return this.leasesService.findMyLease(uid);
   }

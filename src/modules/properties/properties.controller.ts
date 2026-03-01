@@ -41,8 +41,8 @@ export class PropertiesController {
   constructor(private readonly propertiesService: PropertiesService) { }
 
   @Post('upload')
-  @Roles(UserRole.MANAGER)
-  @ApiTags('Manager Portal')
+  @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Upload property images',
     description: 'Access: MANAGER only - Upload images and get URLs back to use in property creation'
@@ -171,11 +171,11 @@ export class PropertiesController {
   }
 
   @Delete(':id')
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
-  @ApiTags('Admin Portal', 'Manager Portal')
+  @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Delete a property',
-    description: 'Access: ADMIN, OWNER only - Delete property listing'
+    description: 'Access: ADMIN only - Delete property listing'
   })
   @ApiParam({ name: 'id', description: 'Property ID' })
   @ApiResponse({ status: 200, description: 'Property deleted successfully' })
