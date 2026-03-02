@@ -127,18 +127,6 @@ export class LeasesController {
 
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
-  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
-  @ApiOperation({ summary: 'Get lease by id' })
-  @ApiParam({ name: 'id', description: 'Lease ID (not the user ID)', example: 'mongo_1772439009724_abcd1234' })
-  @ApiResponse({
-    status: 200,
-    description: 'Lease found',
-    type: LeaseResponseDto,
-  })
-  async findOne(@Param('id') id: string) {
-    return this.leasesService.findOne(id);
-  }
-
   @Get('my-lease')
   @UseGuards(JwtAuthGuard)
   @ApiTags('Tenant Portal')
@@ -159,6 +147,18 @@ export class LeasesController {
 
     const uid = (userId as string) || req.user?.id;
     return this.leasesService.findMyLease(uid);
+  }
+
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
+  @ApiOperation({ summary: 'Get lease by id' })
+  @ApiParam({ name: 'id', description: 'Lease ID (not the user ID)', example: 'mongo_1772439009724_abcd1234' })
+  @ApiResponse({
+    status: 200,
+    description: 'Lease found',
+    type: LeaseResponseDto,
+  })
+  async findOne(@Param('id') id: string) {
+    return this.leasesService.findOne(id);
   }
 
   @Put(':id')
