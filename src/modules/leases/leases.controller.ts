@@ -30,6 +30,7 @@ import {
   ApiOkResponse,
   ApiParam,
   ApiBearerAuth,
+  ApiQuery,
 } from '@nestjs/swagger';
 
 @ApiBearerAuth()
@@ -141,7 +142,9 @@ export class LeasesController {
   @Get('my-lease')
   @UseGuards(JwtAuthGuard)
   @ApiTags('Tenant Portal')
-  @ApiOperation({ summary: "Get current user's lease" })
+  @ApiOperation({ summary: "Get current user's lease (uses authenticated user context)" })
+  @ApiQuery({ name: 'leaseId', required: false, description: 'Optional: Lease ID to fetch (overrides user context)' })
+  @ApiQuery({ name: 'userId', required: false, description: 'Optional: User ID to fetch lease for' })
   @ApiResponse({
     status: 200,
     description: 'User lease found',
