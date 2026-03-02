@@ -15,7 +15,7 @@ import {
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { PropertiesService } from './properties.service';
-import { CreatePropertyDto } from './dto/create-property.dto';
+import { CreatePropertyDto, UpdatePropertyDto } from './dto/create-property.dto';
 import { PropertyResponseDto } from './dto/property-response.dto';
 import { PaginatedPropertiesDto } from './dto/paginated-properties.dto';
 import { PropertyTenantDto } from './dto/property-tenant.dto';
@@ -45,7 +45,7 @@ export class PropertiesController {
   @ApiTags('Admin Portal')
   @ApiOperation({
     summary: 'Upload property images',
-    description: 'Access: MANAGER only - Upload images and get URLs back to use in property creation'
+    description: 'Access: ADMIN only - Upload images and get URLs back to use in property creation'
   })
   @UseInterceptors(
     FilesInterceptor('files', 5, {
@@ -117,19 +117,23 @@ export class PropertiesController {
     description: 'Access: ADMIN, OWNER, MANAGER - List properties with filtering'
   })
   @ApiQuery({ name: 'ownerId', required: false, description: 'Filter by owner ID' })
+  @ApiQuery({ name: 'ownerEmail', required: false, description: 'Filter by owner email' })
   @ApiQuery({ name: 'managerId', required: false, description: 'Filter by manager ID' })
+  @ApiQuery({ name: 'managerEmail', required: false, description: 'Filter by manager email' })
   @ApiQuery({ name: 'page', required: false, description: 'Page number', example: '1' })
   @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: '10' })
   @ApiOkResponse({ description: 'List of properties', type: PaginatedPropertiesDto })
   async findAll(
     @Query('ownerId') ownerId?: string,
+    @Query('ownerEmail') ownerEmail?: string,
     @Query('managerId') managerId?: string,
+    @Query('managerEmail') managerEmail?: string,
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {
     const p = parseInt(page, 10) || 1;
     const l = parseInt(limit, 10) || 10;
-    return this.propertiesService.findAll(ownerId, managerId, p, l);
+    return this.propertiesService.findAll(ownerId, managerId, p, l, ownerEmail, managerEmail);
   }
 
   @Get(':id')
@@ -157,7 +161,7 @@ export class PropertiesController {
     description: 'Access: ADMIN, MANAGER - Update property information'
   })
   @ApiParam({ name: 'id', description: 'Property ID' })
-  @ApiBody({ type: CreatePropertyDto })
+  @ApiBody({ type: UpdatePropertyDto })
   @ApiResponse({
     status: 200,
     description: 'Property updated',
@@ -165,7 +169,7 @@ export class PropertiesController {
   })
   async update(
     @Param('id') id: string,
-    @Body() updatePropertyDto: CreatePropertyDto,
+    @Body() updatePropertyDto: UpdatePropertyDto,
   ) {
     return this.propertiesService.update(id, updatePropertyDto);
   }

@@ -22,8 +22,19 @@ export class PropertiesService {
   async create(createPropertyDto: any): Promise<any> {
     console.log('Creating property with data:', createPropertyDto);
 
-    // Validate owner
-    if (createPropertyDto.ownerId) {
+    // convert ownerEmail/managerEmail to IDs if provided
+    if (createPropertyDto.ownerEmail) {
+      const owner = await this.usersService.findByEmail(createPropertyDto.ownerEmail);
+      if (!owner) {
+        throw new NotFoundException(`Owner with email ${createPropertyDto.ownerEmail} not found`);
+      }
+      if (owner.role !== 'owner') {
+        throw new ConflictException(`User with email ${createPropertyDto.ownerEmail} is not an owner`);
+      }
+      createPropertyDto.ownerId = owner.id;
+    }
+    // fallback check if ownerId provided directly
+    if (createPropertyDto.ownerId && !createPropertyDto.ownerEmail) {
       const owner = await this.usersService.findOne(createPropertyDto.ownerId);
       if (!owner) {
         throw new NotFoundException(`Owner with ID ${createPropertyDto.ownerId} not found`);
@@ -33,7 +44,37 @@ export class PropertiesService {
       }
     }
 
+    if (createPropertyDto.managerEmail) {
+      const manager = await this.usersService.findByEmail(createPropertyDto.managerEmail);
+      if (!manager) {
+        throw new NotFoundException(`Manager with email ${createPropertyDto.managerEmail} not found`);
+      }
+      if (manager.role !== 'manager') {
+        throw new ConflictException(`User with email ${createPropertyDto.managerEmail} is not a manager`);
+      }
+      createPropertyDto.managerId = manager.id;
+    }
+    if (createPropertyDto.managerId && !createPropertyDto.managerEmail) {
+      const manager = await this.usersService.findOne(createPropertyDto.managerId);
+      if (!manager) {
+        throw new NotFoundException(`Manager with ID ${createPropertyDto.managerId} not found`);
+      }
+      if (manager.role !== 'manager') {
+        throw new ConflictException(`User with ID ${createPropertyDto.managerId} is not a manager`);
+      }
+    }
+
     const created = await this.mongoDb.create(this.collection, createPropertyDto);
+
+    // add email fields for response
+    if (created.ownerId) {
+      const owner = await this.usersService.findOne(created.ownerId).catch(() => null);
+      if (owner) created.ownerEmail = owner.email;
+    }
+    if (created.managerId) {
+      const manager = await this.usersService.findOne(created.managerId).catch(() => null);
+      if (manager) created.managerEmail = manager.email;
+    }
 
     // Audit Log
     await this.auditLogsService.create({
@@ -56,9 +97,25 @@ export class PropertiesService {
     return uploadedUrls.filter((url): url is string => url !== null);
   }
 
-  async findAll(ownerId?: string, managerId?: string, page = 1, limit = 10): Promise<any> {
+  async findAll(ownerId?: string, managerId?: string, page = 1, limit = 10, ownerEmail?: string, managerEmail?: string): Promise<any> {
     const skip = (page - 1) * limit;
     const filter: any = {};
+
+    // convert owner email to id if necessary
+    if (ownerEmail && !ownerId) {
+      const owner = await this.usersService.findByEmail(ownerEmail);
+      if (owner) {
+        ownerId = owner.id;
+      }
+    }
+
+    // convert manager email to id
+    if (managerEmail && !managerId) {
+      const manager = await this.usersService.findByEmail(managerEmail);
+      if (manager) {
+        managerId = manager.id;
+      }
+    }
 
     if (ownerId) filter.ownerId = ownerId;
     if (managerId) filter.managerId = managerId;
@@ -72,8 +129,21 @@ export class PropertiesService {
       this.mongoDb.count(this.collection, filter),
     ]);
 
+    // enrich each item with email fields
+    const enriched = await Promise.all(items.map(async (it: any) => {
+      if (it.ownerId) {
+        const owner = await this.usersService.findOne(it.ownerId).catch(() => null);
+        if (owner) it.ownerEmail = owner.email;
+      }
+      if (it.managerId) {
+        const manager = await this.usersService.findOne(it.managerId).catch(() => null);
+        if (manager) it.managerEmail = manager.email;
+      }
+      return it;
+    }));
+
     return {
-      data: items,
+      data: enriched,
       total,
       page,
       limit,
@@ -85,6 +155,15 @@ export class PropertiesService {
     const item = await this.mongoDb.findOne(this.collection, id);
     if (!item) {
       throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+    // enrich with emails
+    if (item.ownerId) {
+      const owner = await this.usersService.findOne(item.ownerId).catch(() => null);
+      if (owner) item.ownerEmail = owner.email;
+    }
+    if (item.managerId) {
+      const manager = await this.usersService.findOne(item.managerId).catch(() => null);
+      if (manager) item.managerEmail = manager.email;
     }
     return item;
   }
@@ -126,10 +205,42 @@ export class PropertiesService {
 
     console.log('Updating property with data:', updatePropertyDto);
 
+    // convert emails if present
+    if (updatePropertyDto.ownerEmail) {
+      const owner = await this.usersService.findByEmail(updatePropertyDto.ownerEmail);
+      if (!owner) {
+        throw new NotFoundException(`Owner with email ${updatePropertyDto.ownerEmail} not found`);
+      }
+      if (owner.role !== 'owner') {
+        throw new ConflictException(`User with email ${updatePropertyDto.ownerEmail} is not an owner`);
+      }
+      updatePropertyDto.ownerId = owner.id;
+    }
+    if (updatePropertyDto.managerEmail) {
+      const manager = await this.usersService.findByEmail(updatePropertyDto.managerEmail);
+      if (!manager) {
+        throw new NotFoundException(`Manager with email ${updatePropertyDto.managerEmail} not found`);
+      }
+      if (manager.role !== 'manager') {
+        throw new ConflictException(`User with email ${updatePropertyDto.managerEmail} is not a manager`);
+      }
+      updatePropertyDto.managerId = manager.id;
+    }
+
     const updated = await this.mongoDb.update(this.collection, id, updatePropertyDto);
 
     if (!updated) {
       throw new NotFoundException(`Property with ID ${id} not found`);
+    }
+
+    // enrich with emails
+    if (updated.ownerId) {
+      const owner = await this.usersService.findOne(updated.ownerId).catch(() => null);
+      if (owner) updated.ownerEmail = owner.email;
+    }
+    if (updated.managerId) {
+      const manager = await this.usersService.findOne(updated.managerId).catch(() => null);
+      if (manager) updated.managerEmail = manager.email;
     }
 
     // Audit Log

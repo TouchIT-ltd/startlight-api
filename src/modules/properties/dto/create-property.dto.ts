@@ -1,4 +1,5 @@
 import { IsString, IsNumber, IsOptional, Min, IsArray } from 'class-validator';
+import { PartialType } from '@nestjs/swagger';
 
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -34,14 +35,31 @@ export class CreatePropertyDto {
   totalUnits!: number;
 
   @ApiProperty({
-    description: 'ID of the owner who owns this property',
-    example: '507f1f77bcf86cd799439012',
+    description: 'Email of the owner who owns this property',
+    example: 'owner@example.com',
   })
   @IsString()
-  ownerId!: string;
+  ownerEmail!: string;
 
   @ApiPropertyOptional({
-    description: 'ID of the manager assigned to this property',
+    description: 'Email of the manager assigned to this property',
+    example: 'manager@example.com',
+  })
+  @IsOptional()
+  @IsString()
+  managerEmail?: string;
+
+  // backwards-compatibility fields (IDs can still be provided if needed)
+  @ApiPropertyOptional({
+    description: 'ID of the owner (deprecated, prefer ownerEmail)',
+    example: '507f1f77bcf86cd799439012',
+  })
+  @IsOptional()
+  @IsString()
+  ownerId?: string;
+
+  @ApiPropertyOptional({
+    description: 'ID of the manager (deprecated, prefer managerEmail)',
     example: '507f1f77bcf86cd799439013',
   })
   @IsOptional()
@@ -57,3 +75,4 @@ export class CreatePropertyDto {
   @IsString({ each: true })
   images?: string[];
 }
+export class UpdatePropertyDto extends PartialType(CreatePropertyDto) {}

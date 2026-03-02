@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class PropertyResponseDto {
   @ApiProperty({
@@ -38,11 +38,23 @@ export class PropertyResponseDto {
   ownerId!: string;
 
   @ApiProperty({
+    description: 'Email of the owner',
+    example: 'owner@example.com',
+  })
+  ownerEmail!: string;
+
+  @ApiProperty({
     description: 'ID of the manager assigned to this property',
     example: '507f1f77bcf86cd799439013',
     required: false,
   })
   managerId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Email of the manager assigned to this property',
+    example: 'manager@example.com',
+  })
+  managerEmail?: string;
 
   @ApiProperty({
     description: 'Array of image URLs for the property',
