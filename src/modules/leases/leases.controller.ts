@@ -129,7 +129,7 @@ export class LeasesController {
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
   @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
   @ApiOperation({ summary: 'Get lease by id' })
-  @ApiParam({ name: 'id', description: 'Lease ID' })
+  @ApiParam({ name: 'id', description: 'Lease ID (not the user ID)', example: 'mongo_1772439009724_abcd1234' })
   @ApiResponse({
     status: 200,
     description: 'Lease found',
@@ -150,15 +150,14 @@ export class LeasesController {
   })
   async findMyLease(
     @Request() req: any,
-    @Query('leaseId') leaseId?: string,
-    @Query('userId') userId?: string,
   ) {
+    const { leaseId, userId } = req.query;
     // If a leaseId is provided, return by lease id
     if (leaseId) {
-      return this.leasesService.findOne(leaseId);
+      return this.leasesService.findOne(leaseId as string);
     }
 
-    const uid = userId || req.user?.id;
+    const uid = (userId as string) || req.user?.id;
     return this.leasesService.findMyLease(uid);
   }
 
