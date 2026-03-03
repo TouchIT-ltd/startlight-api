@@ -248,7 +248,7 @@ export class PaymentService {
 
             if (payment) {
                 const newStatus = data.data.status?.toUpperCase() || payment.status;
-                const updatePayload: any = { gatewayResponse: data.data };
+                const updatePayload: any = { gatewayResponse: this.normalizePaystackAmount(data.data) };
 
                 if (newStatus === 'SUCCESS' && payment.status !== 'SUCCESS') {
                     updatePayload.status = 'SUCCESS';
@@ -264,7 +264,7 @@ export class PaymentService {
                 await this.mongoDb.update(this.collectionName, payment.id, updatePayload);
             }
 
-            return data.data;
+            return this.normalizePaystackAmount(data.data);
         } catch (error: any) {
             this.logger.error(`Payment verification error: ${error.message}`);
             throw error;
@@ -424,7 +424,7 @@ export class PaymentService {
                     await this.mongoDb.update(this.collectionName, payment.id, {
                         status: 'SUCCESS',
                         paidAt: new Date(),
-                        gatewayResponse: data,
+                        gatewayResponse: this.normalizePaystackAmount(data),
                     });
                     this.logger.log(`Payment ${reference} updated to SUCCESS`);
 
@@ -568,5 +568,28 @@ export class PaymentService {
         }
 
         return payment;
+    }
+
+    /**
+     * Convert Paystack gateway response amounts from kobo to Naira
+     * Paystack stores amounts in kobo (100 kobo = 1 Naira)
+     */
+    private normalizePaystackAmount(gatewayResponse: any): any {
+        if (!gatewayResponse) return gatewayResponse;
+
+        const normalized = { ...gatewayResponse };
+
+        // Convert main amount fields from kobo to Naira
+        if (normalized.amount) {
+            normalized.amount = Math.round(normalized.amount / 100);
+        }
+        if (normalized.requested_amount) {
+            normalized.requested_amount = Math.round(normalized.requested_amount / 100);
+        }
+        if (normalized.fees) {
+            normalized.fees = Math.round(normalized.fees / 100);
+        }
+
+        return normalized;
     }
 }
