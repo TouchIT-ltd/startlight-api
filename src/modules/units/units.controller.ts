@@ -21,6 +21,7 @@ import { PaginatedUnitsDto } from './dto/paginated-units.dto';
 import { JwtAuthGuard } from '../../shared/guards/jwt-auth.guard';
 import { RolesGuard } from '../../shared/guards/roles.guard';
 import { Roles, UserRole } from '../../shared/decorators/roles.decorator';
+import { Public } from '../../shared/decorators/public.decorator';
 import {
   ApiTags,
   ApiOperation,
@@ -101,7 +102,7 @@ export class UnitsController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @Public()
   @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
   @ApiOperation({
     summary: 'Get a paginated list of units',
@@ -126,7 +127,7 @@ export class UnitsController {
   }
 
   @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @Public()
   @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
   @ApiOperation({
     summary: 'Get unit by id',
