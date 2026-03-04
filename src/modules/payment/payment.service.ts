@@ -46,6 +46,7 @@ export class PaymentService {
         resourceType: string,
         metadata: any = {},
     ) {
+        this.logger.log(`initializePayment called userId=${userId} resourceType=${resourceType} resourceId=${resourceId}`);
         try {
             // Use email from JWT token (already verified by guard)
             // No need for database lookup of user
@@ -218,12 +219,26 @@ export class PaymentService {
                 title: resourceTitle,
             };
         } catch (error: any) {
-            this.logger.error(`Payment initialization error: ${error.message}`);
-            throw new InternalServerErrorException(error.message);
+            const errorResponse = {
+                message: `Payment initialization failed: ${error.message}`,
+                error: error.message,
+                code: error.code || 'INIT_PAYMENT_ERROR',
+                timestamp: new Date().toISOString(),
+                userId,
+                resourceType,
+                resourceId,
+                details: {
+                    stack: error.stack,
+                    response: error.response?.data || null,
+                }
+            };
+            this.logger.error('Payment initialization error:', errorResponse);
+            throw new InternalServerErrorException(errorResponse);
         }
     }
 
     async verifyPayment(reference: string) {
+        this.logger.log(`verifyPayment called for reference=${reference}`);
         try {
             const headers = {
                 Authorization: `Bearer ${this.configService.getOrThrow('PAYSTACK_SECRET_KEY')}`,
@@ -266,12 +281,24 @@ export class PaymentService {
 
             return this.normalizePaystackAmount(data.data);
         } catch (error: any) {
-            this.logger.error(`Payment verification error: ${error.message}`);
-            throw error;
+            const errorResponse = {
+                message: `Payment verification failed: ${error.message}`,
+                error: error.message,
+                reference,
+                code: error.code || 'VERIFY_PAYMENT_ERROR',
+                timestamp: new Date().toISOString(),
+                details: {
+                    stack: error.stack,
+                    response: error.response?.data || null,
+                }
+            };
+            this.logger.error('Payment verification error:', errorResponse);
+            throw new BadRequestException(errorResponse);
         }
     }
 
     private async _processSuccessfulPayment(payment: any) {
+        this.logger.log(`_processSuccessfulPayment start for payment.id=${payment.id} resourceType=${payment.resourceType}`);
         // Audit Log
         await this.auditLogsService.create({
             userId: payment.userId,
@@ -323,6 +350,7 @@ export class PaymentService {
                         };
 
                         const createdLease = await this.leasesService.create(leaseData);
+                        this.logger.log(`lease created id=${createdLease.id}`);
 
                         // Mark unit as occupied and link tenant
                         await this.unitsService.update(unit.id, {
@@ -400,127 +428,144 @@ export class PaymentService {
     }
 
     async handleWebhook(signature: string, payload: any) {
-        const secret = this.configService.getOrThrow('PAYSTACK_SECRET_KEY');
-        const hash = createHmac('sha512', secret)
-            .update(JSON.stringify(payload))
-            .digest('hex');
+        this.logger.log(`webhook received with event=${payload.event}`);
+        try {
+            const secret = this.configService.getOrThrow('PAYSTACK_SECRET_KEY');
+            const hash = createHmac('sha512', secret)
+                .update(JSON.stringify(payload))
+                .digest('hex');
 
-        if (hash !== signature) {
-            this.logger.warn('Invalid webhook signature');
-            throw new BadRequestException('Invalid signature');
-        }
+            if (hash !== signature) {
+                this.logger.warn('Invalid webhook signature');
+                throw new BadRequestException('Invalid signature');
+            }
+            const { event, data } = payload;
+            this.logger.log(`webhook received event=${event}`);
 
-        const { event, data } = payload;
+            if (event === 'charge.success') {
+                const reference = data.reference;
 
-        if (event === 'charge.success') {
-            const reference = data.reference;
+                this.logger.log(`Processing successful payment for ${reference}`);
 
-            this.logger.log(`Processing successful payment for ${reference}`);
+                const payment = await this.mongoDb.findOneBy(this.collectionName, { reference });
 
-            const payment = await this.mongoDb.findOneBy(this.collectionName, { reference });
+                if (payment) {
+                    if (payment.status !== 'SUCCESS') {
+                        await this.mongoDb.update(this.collectionName, payment.id, {
+                            status: 'SUCCESS',
+                            paidAt: new Date(),
+                            gatewayResponse: this.normalizePaystackAmount(data),
+                        });
+                        this.logger.log(`Payment ${reference} updated to SUCCESS`);
 
-            if (payment) {
-                if (payment.status !== 'SUCCESS') {
-                    await this.mongoDb.update(this.collectionName, payment.id, {
-                        status: 'SUCCESS',
-                        paidAt: new Date(),
-                        gatewayResponse: this.normalizePaystackAmount(data),
-                    });
-                    this.logger.log(`Payment ${reference} updated to SUCCESS`);
+                        // Audit Log
+                        await this.auditLogsService.create({
+                            userId: payment.userId,
+                            action: 'PAYMENT_SUCCESS',
+                            entityType: 'payment',
+                            entityId: payment.id,
+                            details: { amount: payment.amount, reference },
+                            createdAt: new Date(),
+                        });
 
-                    // Audit Log
-                    await this.auditLogsService.create({
-                        userId: payment.userId,
-                        action: 'PAYMENT_SUCCESS',
-                        entityType: 'payment',
-                        entityId: payment.id,
-                        details: { amount: payment.amount, reference },
-                        createdAt: new Date(),
-                    });
+                        // Notification
+                        await this.notificationsService.create({
+                            userId: payment.userId,
+                            title: 'Payment Successful',
+                            message: `Payment of ${payment.amount} for ${payment.title} was successful.`,
+                            type: 'PAYMENT_SUCCESS',
+                            entityId: payment.id,
+                        });
 
-                    // Notification
-                    await this.notificationsService.create({
-                        userId: payment.userId,
-                        title: 'Payment Successful',
-                        message: `Payment of ${payment.amount} for ${payment.title} was successful.`,
-                        type: 'PAYMENT_SUCCESS',
-                        entityId: payment.id,
-                    });
+                        // Propagate to Rent Request if applicable
+                        if (payment.resourceType === 'RENT_REQUEST') {
+                            const rentRequest = await this.mongoDb.findOne('rent-requests', payment.resourceId);
+                            if (rentRequest) {
+                                await this.mongoDb.update('rent-requests', payment.resourceId, {
+                                    isPaid: true,
+                                    paidAt: new Date(),
+                                    status: 'paid'
+                                });
 
-                    // Propagate to Rent Request if applicable
-                    if (payment.resourceType === 'RENT_REQUEST') {
-                        const rentRequest = await this.mongoDb.findOne('rent-requests', payment.resourceId);
-                        if (rentRequest) {
-                            await this.mongoDb.update('rent-requests', payment.resourceId, {
-                                isPaid: true,
-                                paidAt: new Date(),
-                                status: 'paid'
-                            });
+                                // Create lease automatically when a rent request is paid
+                                try {
+                                    // Fetch unit linked to this rent request
+                                    const unit = await this.mongoDb.findOne('units', rentRequest.unitId);
+                                    if (unit) {
+                                        const now = new Date();
+                                        const startDate = now.toISOString().split('T')[0];
+                                        const end = new Date(now);
+                                        end.setFullYear(end.getFullYear() + 1); // default 12-month lease
+                                        const endDate = end.toISOString().split('T')[0];
 
-                            // Create lease automatically when a rent request is paid
-                            try {
-                                // Fetch unit linked to this rent request
-                                const unit = await this.mongoDb.findOne('units', rentRequest.unitId);
-                                if (unit) {
-                                    const now = new Date();
-                                    const startDate = now.toISOString().split('T')[0];
-                                    const end = new Date(now);
-                                    end.setFullYear(end.getFullYear() + 1); // default 12-month lease
-                                    const endDate = end.toISOString().split('T')[0];
+                                        const leaseData: any = {
+                                            userId: rentRequest.userId,
+                                            propertyId: unit.propertyId,
+                                            unitNumber: unit.unitNumber,
+                                            startDate,
+                                            endDate,
+                                            rentAmount: rentRequest.amount || unit.price,
+                                            status: 'active',
+                                        };
 
-                                    const leaseData: any = {
-                                        userId: rentRequest.userId,
-                                        propertyId: unit.propertyId,
-                                        unitNumber: unit.unitNumber,
-                                        startDate,
-                                        endDate,
-                                        rentAmount: rentRequest.amount || unit.price,
-                                        status: 'active',
-                                    };
+                                        const createdLease = await this.leasesService.create(leaseData);
 
-                                    const createdLease = await this.leasesService.create(leaseData);
+                                        // Mark unit as occupied and link tenant
+                                        await this.unitsService.update(unit.id, {
+                                            status: 'occupied',
+                                            tenantId: rentRequest.userId,
+                                        });
 
-                                    // Mark unit as occupied and link tenant
-                                    await this.unitsService.update(unit.id, {
-                                        status: 'occupied',
-                                        tenantId: rentRequest.userId,
-                                    });
+                                        // Cancel other pending rent requests for this unit
+                                        await this.mongoDb.updateMany('rent-requests', { unitId: unit.id, status: 'pending' }, { status: 'cancelled' });
 
-                                    // Cancel other pending rent requests for this unit
-                                    await this.mongoDb.updateMany('rent-requests', { unitId: unit.id, status: 'pending' }, { status: 'cancelled' });
-
-                                    await this.notificationsService.create({
-                                        userId: rentRequest.userId,
-                                        title: 'Lease Created',
-                                        message: `Lease created for unit ${unit.unitNumber}.`,
-                                        type: 'LEASE_CREATED',
-                                        entityId: createdLease.id,
-                                    });
-                                } else {
-                                    // If unit not found, just notify
-                                    await this.notificationsService.create({
-                                        userId: rentRequest.userId,
-                                        title: 'Rent Request Paid',
-                                        message: 'Your rent request is marked as paid. Unit information could not be resolved to auto-create a lease.',
-                                        type: 'RENT_PAID',
-                                        entityId: payment.resourceId,
-                                    });
+                                        await this.notificationsService.create({
+                                            userId: rentRequest.userId,
+                                            title: 'Lease Created',
+                                            message: `Lease created for unit ${unit.unitNumber}.`,
+                                            type: 'LEASE_CREATED',
+                                            entityId: createdLease.id,
+                                        });
+                                    } else {
+                                        // If unit not found, just notify
+                                        await this.notificationsService.create({
+                                            userId: rentRequest.userId,
+                                            title: 'Rent Request Paid',
+                                            message: 'Your rent request is marked as paid. Unit information could not be resolved to auto-create a lease.',
+                                            type: 'RENT_PAID',
+                                            entityId: payment.resourceId,
+                                        });
+                                    }
+                                } catch (err) {
+                                    this.logger.error('Failed to auto-create lease after payment: ' + String(err));
                                 }
-                            } catch (err) {
-                                this.logger.error('Failed to auto-create lease after payment: ' + String(err));
                             }
                         }
+
+                    } else {
+                        this.logger.log(`Payment ${reference} already marked as SUCCESS`);
                     }
-
                 } else {
-                    this.logger.log(`Payment ${reference} already marked as SUCCESS`);
+                    this.logger.error(`Payment record not found for reference ${reference} in webhook`);
                 }
-            } else {
-                this.logger.error(`Payment record not found for reference ${reference} in webhook`);
             }
-        }
 
-        return true;
+            return true;
+        } catch (error: any) {
+            const errorResponse = {
+                message: `Webhook processing failed: ${error.message}`,
+                error: error.message,
+                event: payload?.event,
+                code: 'WEBHOOK_ERROR',
+                timestamp: new Date().toISOString(),
+                details: {
+                    stack: error.stack,
+                    payload: payload ? { event: payload.event, reference: payload.data?.reference } : null,
+                }
+            };
+            this.logger.error('Webhook processing error:', errorResponse);
+            throw new InternalServerErrorException(errorResponse);
+        }
     }
 
     async findAll(userId?: string, role?: string, page = 1, limit = 10, status?: string) {

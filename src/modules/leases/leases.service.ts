@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { CloudinaryService } from '../../shared/services/cloudinary.service';
@@ -10,6 +11,7 @@ import { AuditLogsService } from '../audit-logs/audit-logs.service';
 @Injectable()
 export class LeasesService {
   private readonly collection = 'leases';
+  private readonly logger = new Logger(LeasesService.name);
 
   constructor(
     private readonly mongoDb: MongoDatabaseService,
@@ -18,49 +20,66 @@ export class LeasesService {
   ) { }
 
   async create(data: any, file?: any): Promise<any> {
-    console.log('Creating lease with data:', data);
+    try {
+      console.log('Creating lease with data:', data);
 
-    // Handle file upload for documentUrl
-    let documentUrl;
-    if (file) {
-      // Validate file type (PDFs and documents)
-      const allowedMimes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      ];
-      if (!allowedMimes.includes(file.mimetype)) {
-        throw new ConflictException('Only PDF and Word documents are allowed');
+      // Handle file upload for documentUrl
+      let documentUrl;
+      if (file) {
+        // Validate file type (PDFs and documents)
+        const allowedMimes = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+        if (!allowedMimes.includes(file.mimetype)) {
+          throw new ConflictException('Only PDF and Word documents are allowed');
+        }
+
+        console.log('Uploading document to Cloudinary...');
+        // Upload to Cloudinary
+        documentUrl = await this.cloudinaryService.uploadImage(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        );
+        if (!documentUrl) {
+          throw new ConflictException('Failed to upload document');
+        }
       }
 
-      console.log('Uploading document to Cloudinary...');
-      // Upload to Cloudinary
-      documentUrl = await this.cloudinaryService.uploadImage(
-        file.buffer,
-        file.originalname,
-        file.mimetype,
-      );
-      if (!documentUrl) {
-        throw new ConflictException('Failed to upload document');
-      }
+      const created = await this.mongoDb.create(this.collection, {
+        ...data,
+        documentUrl,
+      });
+
+      // Audit Log
+      await this.auditLogsService.create({
+        userId: data.userId,
+        action: 'CREATE_LEASE',
+        entityType: 'lease',
+        entityId: created.id,
+        details: { propertyId: data.propertyId, unitNumber: data.unitNumber },
+        createdAt: new Date(),
+      });
+
+      return created;
+    } catch (error: any) {
+      const errorResponse = {
+        message: `Failed to create lease: ${error.message}`,
+        error: error.message,
+        code: error.code || 'CREATE_LEASE_ERROR',
+        timestamp: new Date().toISOString(),
+        details: {
+          userId: data?.userId,
+          propertyId: data?.propertyId,
+          unitNumber: data?.unitNumber,
+          stack: error.stack,
+        }
+      };
+      this.logger.error('Create lease error:', errorResponse);
+      throw error;
     }
-
-    const created = await this.mongoDb.create(this.collection, {
-      ...data,
-      documentUrl,
-    });
-
-    // Audit Log
-    await this.auditLogsService.create({
-      userId: data.userId,
-      action: 'CREATE_LEASE',
-      entityType: 'lease',
-      entityId: created.id,
-      details: { propertyId: data.propertyId, unitNumber: data.unitNumber },
-      createdAt: new Date(),
-    });
-
-    return created;
   }
 
   async findAll(page = 1, limit = 10, filters: { propertyId?: string; userId?: string; role?: string } = {}): Promise<any> {
@@ -113,103 +132,166 @@ export class LeasesService {
   }
 
   async findOne(id: string): Promise<any> {
-    const item = await this.mongoDb.findOne(this.collection, id);
-    if (!item) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
+    try {
+      this.logger.log(`findOne lease id=${id}`);
+      const item = await this.mongoDb.findOne(this.collection, id);
+      if (!item) {
+        this.logger.warn(`lease id=${id} not found`);
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
+      return item;
+    } catch (error: any) {
+      const errorResponse = {
+        message: `Failed to find lease: ${error.message}`,
+        error: error.message,
+        code: error.code || 'FIND_LEASE_ERROR',
+        timestamp: new Date().toISOString(),
+        leaseId: id,
+        details: {
+          stack: error.stack,
+        }
+      };
+      this.logger.error('Find lease error:', errorResponse);
+      throw error;
     }
-    return item;
   }
 
   async findMyLease(userId: string): Promise<any> {
-    if (!userId) {
-      throw new NotFoundException('User id is required to find lease');
+    try {
+      this.logger.log(`findMyLease lookup for user ${userId}`);
+      if (!userId) {
+        throw new NotFoundException('User id is required to find lease');
+      }
+
+      // Support leases that reference the tenant as either `userId` or `tenantId`.
+      const item = await this.mongoDb.findOneBy(this.collection, {
+        $or: [{ userId }, { tenantId: userId }],
+        status: 'active',
+      });
+
+      if (!item) {
+        throw new NotFoundException(`No active lease found for user ${userId}`);
+      }
+
+      return item;
+    } catch (error: any) {
+      const errorResponse = {
+        message: `Failed to find my lease: ${error.message}`,
+        error: error.message,
+        code: error.code || 'FIND_MY_LEASE_ERROR',
+        timestamp: new Date().toISOString(),
+        userId,
+        details: {
+          stack: error.stack,
+        }
+      };
+      this.logger.error('Find my lease error:', errorResponse);
+      throw error;
     }
-
-    // Support leases that reference the tenant as either `userId` or `tenantId`.
-    const item = await this.mongoDb.findOneBy(this.collection, {
-      $or: [{ userId }, { tenantId: userId }],
-      status: 'active',
-    });
-
-    if (!item) {
-      throw new NotFoundException(`No active lease found for user ${userId}`);
-    }
-
-    return item;
   }
 
   async update(id: string, data: any, file?: any): Promise<any> {
-    const existing = await this.mongoDb.findOne(this.collection, id);
-    if (!existing) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
-    }
-
-    console.log('Updating lease with data:', data);
-
-    let documentUrl = existing.documentUrl;
-    if (file) {
-      const allowedMimes = [
-        'application/pdf',
-        'application/msword',
-        'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      ];
-      if (!allowedMimes.includes(file.mimetype)) {
-        throw new ConflictException('Only PDF and Word documents are allowed');
+    try {
+      const existing = await this.mongoDb.findOne(this.collection, id);
+      if (!existing) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
       }
 
-      documentUrl = await this.cloudinaryService.uploadImage(
-        file.buffer,
-        file.originalname,
-        file.mimetype,
-      );
-      if (!documentUrl) {
-        throw new ConflictException('Failed to upload document');
+      console.log('Updating lease with data:', data);
+
+      let documentUrl = existing.documentUrl;
+      if (file) {
+        const allowedMimes = [
+          'application/pdf',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        ];
+        if (!allowedMimes.includes(file.mimetype)) {
+          throw new ConflictException('Only PDF and Word documents are allowed');
+        }
+
+        documentUrl = await this.cloudinaryService.uploadImage(
+          file.buffer,
+          file.originalname,
+          file.mimetype,
+        );
+        if (!documentUrl) {
+          throw new ConflictException('Failed to upload document');
+        }
       }
+
+      const updated = await this.mongoDb.update(this.collection, id, {
+        ...data,
+        documentUrl,
+      });
+
+      if (!updated) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
+
+      // Audit Log
+      await this.auditLogsService.create({
+        userId: existing.userId,
+        action: 'UPDATE_LEASE',
+        entityType: 'lease',
+        entityId: id,
+        details: { updates: Object.keys(data) },
+        createdAt: new Date(),
+      });
+
+      return updated;
+    } catch (error: any) {
+      const errorResponse = {
+        message: `Failed to update lease: ${error.message}`,
+        error: error.message,
+        code: error.code || 'UPDATE_LEASE_ERROR',
+        timestamp: new Date().toISOString(),
+        leaseId: id,
+        details: {
+          stack: error.stack,
+        }
+      };
+      this.logger.error('Update lease error:', errorResponse);
+      throw error;
     }
-
-    const updated = await this.mongoDb.update(this.collection, id, {
-      ...data,
-      documentUrl,
-    });
-
-    if (!updated) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
-    }
-
-    // Audit Log
-    await this.auditLogsService.create({
-      userId: existing.userId,
-      action: 'UPDATE_LEASE',
-      entityType: 'lease',
-      entityId: id,
-      details: { updates: Object.keys(data) },
-      createdAt: new Date(),
-    });
-
-    return updated;
   }
 
   async remove(id: string): Promise<{ message: string }> {
-    const existing = await this.mongoDb.findOne(this.collection, id);
-    if (!existing) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
+    try {
+      const existing = await this.mongoDb.findOne(this.collection, id);
+      if (!existing) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
+
+      const deleted = await this.mongoDb.delete(this.collection, id);
+      if (!deleted) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
+
+      // Audit Log
+      await this.auditLogsService.create({
+        userId: existing.userId,
+        action: 'DELETE_LEASE',
+        entityType: 'lease',
+        entityId: id,
+        details: { propertyId: existing.propertyId, unitNumber: existing.unitNumber },
+        createdAt: new Date(),
+      });
+
+      return { message: 'Lease deleted successfully' };
+    } catch (error: any) {
+      const errorResponse = {
+        message: `Failed to delete lease: ${error.message}`,
+        error: error.message,
+        code: error.code || 'DELETE_LEASE_ERROR',
+        timestamp: new Date().toISOString(),
+        leaseId: id,
+        details: {
+          stack: error.stack,
+        }
+      };
+      this.logger.error('Delete lease error:', errorResponse);
+      throw error;
     }
-
-    const deleted = await this.mongoDb.delete(this.collection, id);
-    if (!deleted) {
-      throw new NotFoundException(`Lease with ID ${id} not found`);
-    }
-
-    // Audit Log
-    await this.auditLogsService.create({
-      userId: existing.userId,
-      action: 'DELETE_LEASE',
-      entityType: 'lease',
-      entityId: id,
-      details: { propertyId: existing.propertyId, unitNumber: existing.unitNumber },
-      createdAt: new Date(),
-    });
-
-    return { message: 'Lease deleted successfully' };
   }
 }
