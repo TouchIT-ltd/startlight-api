@@ -451,97 +451,16 @@ export class PaymentService {
 
                 if (payment) {
                     if (payment.status !== 'SUCCESS') {
+                        // Mark as SUCCESS first to prevent race condition if verifyPayment is called simultaneously
                         await this.mongoDb.update(this.collectionName, payment.id, {
                             status: 'SUCCESS',
                             paidAt: new Date(),
                             gatewayResponse: this.normalizePaystackAmount(data),
                         });
-                        this.logger.log(`Payment ${reference} updated to SUCCESS`);
+                        this.logger.log(`Payment ${reference} updated to SUCCESS via webhook`);
 
-                        // Audit Log
-                        await this.auditLogsService.create({
-                            userId: payment.userId,
-                            action: 'PAYMENT_SUCCESS',
-                            entityType: 'payment',
-                            entityId: payment.id,
-                            details: { amount: payment.amount, reference },
-                            createdAt: new Date(),
-                        });
-
-                        // Notification
-                        await this.notificationsService.create({
-                            userId: payment.userId,
-                            title: 'Payment Successful',
-                            message: `Payment of ${payment.amount} for ${payment.title} was successful.`,
-                            type: 'PAYMENT_SUCCESS',
-                            entityId: payment.id,
-                        });
-
-                        // Propagate to Rent Request if applicable
-                        if (payment.resourceType === 'RENT_REQUEST') {
-                            const rentRequest = await this.mongoDb.findOne('rent-requests', payment.resourceId);
-                            if (rentRequest) {
-                                await this.mongoDb.update('rent-requests', payment.resourceId, {
-                                    isPaid: true,
-                                    paidAt: new Date(),
-                                    status: 'paid'
-                                });
-
-                                // Create lease automatically when a rent request is paid
-                                try {
-                                    // Fetch unit linked to this rent request
-                                    const unit = await this.mongoDb.findOne('units', rentRequest.unitId);
-                                    if (unit) {
-                                        const now = new Date();
-                                        const startDate = now.toISOString().split('T')[0];
-                                        const end = new Date(now);
-                                        end.setFullYear(end.getFullYear() + 1); // default 12-month lease
-                                        const endDate = end.toISOString().split('T')[0];
-
-                                        const leaseData: any = {
-                                            userId: rentRequest.userId,
-                                            propertyId: unit.propertyId,
-                                            unitNumber: unit.unitNumber,
-                                            startDate,
-                                            endDate,
-                                            rentAmount: rentRequest.amount || unit.price,
-                                            status: 'active',
-                                        };
-
-                                        const createdLease = await this.leasesService.create(leaseData);
-
-                                        // Mark unit as occupied and link tenant
-                                        await this.unitsService.update(unit.id, {
-                                            status: 'occupied',
-                                            tenantId: rentRequest.userId,
-                                        });
-
-                                        // Cancel other pending rent requests for this unit
-                                        await this.mongoDb.updateMany('rent-requests', { unitId: unit.id, status: 'pending' }, { status: 'cancelled' });
-
-                                        await this.notificationsService.create({
-                                            userId: rentRequest.userId,
-                                            title: 'Lease Created',
-                                            message: `Lease created for unit ${unit.unitNumber}.`,
-                                            type: 'LEASE_CREATED',
-                                            entityId: createdLease.id,
-                                        });
-                                    } else {
-                                        // If unit not found, just notify
-                                        await this.notificationsService.create({
-                                            userId: rentRequest.userId,
-                                            title: 'Rent Request Paid',
-                                            message: 'Your rent request is marked as paid. Unit information could not be resolved to auto-create a lease.',
-                                            type: 'RENT_PAID',
-                                            entityId: payment.resourceId,
-                                        });
-                                    }
-                                } catch (err) {
-                                    this.logger.error('Failed to auto-create lease after payment: ' + String(err));
-                                }
-                            }
-                        }
-
+                        // Process the payment (creates lease, etc.)
+                        await this._processSuccessfulPayment(payment);
                     } else {
                         this.logger.log(`Payment ${reference} already marked as SUCCESS`);
                     }
