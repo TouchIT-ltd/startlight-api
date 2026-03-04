@@ -31,6 +31,26 @@ export class LeaseResponseDto {
   @ApiPropertyOptional({ example: 'https://res.cloudinary.com/.../lease.pdf' })
   documentUrl?: string;
 
+  @ApiPropertyOptional({
+    example: {
+      id: 'mongo_unit_123',
+      unitNumber: 'A101',
+      price: 1200,
+      images: ['url1', 'url2'],
+      amenities: ['Wifi', 'Parking']
+    }
+  })
+  unit?: any;
+
+  @ApiPropertyOptional({
+    example: {
+      id: 'mongo_prop_123',
+      name: 'Sunset Heights',
+      address: '123 Main St'
+    }
+  })
+  property?: any;
+
   @ApiProperty({ type: String })
   createdAt!: Date;
 

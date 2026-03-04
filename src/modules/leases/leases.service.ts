@@ -123,8 +123,12 @@ export class LeasesService {
       this.mongoDb.count(this.collection, dbFilter),
     ]);
 
+    const populatedItems = await Promise.all(
+      items.map(item => this._populateLeaseDetails(item))
+    );
+
     return {
-      data: items,
+      data: populatedItems,
       total,
       page,
       totalPages: Math.ceil(total / limit),
@@ -139,7 +143,7 @@ export class LeasesService {
         this.logger.warn(`lease id=${id} not found`);
         throw new NotFoundException(`Lease with ID ${id} not found`);
       }
-      return item;
+      return this._populateLeaseDetails(item);
     } catch (error: any) {
       const errorResponse = {
         message: `Failed to find lease: ${error.message}`,
@@ -173,7 +177,7 @@ export class LeasesService {
         throw new NotFoundException(`No active lease found for user ${userId}`);
       }
 
-      return item;
+      return this._populateLeaseDetails(item);
     } catch (error: any) {
       const errorResponse = {
         message: `Failed to find my lease: ${error.message}`,
@@ -188,6 +192,57 @@ export class LeasesService {
       this.logger.error('Find my lease error:', errorResponse);
       throw error;
     }
+  }
+
+  private async _populateLeaseDetails(lease: any): Promise<any> {
+    if (!lease) return lease;
+
+    // Populate Unit Details
+    if (lease.unitNumber && lease.propertyId) {
+      try {
+        const unit = await this.mongoDb.findOneBy('units', {
+          propertyId: lease.propertyId,
+          unitNumber: lease.unitNumber,
+        });
+        if (unit) {
+          lease.unit = {
+            id: unit.id,
+            unitNumber: unit.unitNumber,
+            price: unit.price,
+            images: unit.images || [],
+            image: unit.image,
+            bedrooms: unit.bedrooms,
+            bathrooms: unit.bathrooms,
+            amenities: unit.amenities || [],
+            description: unit.description,
+            status: unit.status,
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to populate unit details for lease ${lease.id}: ${err.message}`);
+      }
+    }
+
+    // Populate Property Details
+    if (lease.propertyId) {
+      try {
+        const property = await this.mongoDb.findOne('properties', lease.propertyId);
+        if (property) {
+          lease.property = {
+            id: property.id,
+            name: property.name,
+            address: property.address,
+            description: property.description,
+            images: property.images || [],
+            image: property.image,
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to populate property details for lease ${lease.id}: ${err.message}`);
+      }
+    }
+
+    return lease;
   }
 
   async update(id: string, data: any, file?: any): Promise<any> {
