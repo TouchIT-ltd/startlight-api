@@ -126,8 +126,6 @@ export class LeasesController {
   }
 
   @Get('my-lease')
-  @UseGuards(JwtAuthGuard)
-  @UseGuards(JwtAuthGuard)
   @ApiTags('Tenant Portal')
   @ApiOperation({ summary: "Get current user's lease (uses authenticated user context)" })
   @ApiResponse({
@@ -148,6 +146,8 @@ export class LeasesController {
     return this.leasesService.findMyLease(uid);
   }
 
+  @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
   @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
   @ApiOperation({ summary: 'Get lease by id' })
   @ApiParam({ name: 'id', description: 'Lease ID (not the user ID)', example: 'mongo_1772439009724_abcd1234' })
@@ -156,8 +156,6 @@ export class LeasesController {
     description: 'Lease found',
     type: LeaseResponseDto,
   })
-  @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
   async findOne(@Param('id') id: string) {
     return this.leasesService.findOne(id);
   }
