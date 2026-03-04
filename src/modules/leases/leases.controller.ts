@@ -125,9 +125,8 @@ export class LeasesController {
     return this.leasesService.findAll(p, l, { propertyId, userId, role });
   }
 
-  @Get(':id')
-  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
   @Get('my-lease')
+  @UseGuards(JwtAuthGuard)
   @UseGuards(JwtAuthGuard)
   @ApiTags('Tenant Portal')
   @ApiOperation({ summary: "Get current user's lease (uses authenticated user context)" })
@@ -157,6 +156,8 @@ export class LeasesController {
     description: 'Lease found',
     type: LeaseResponseDto,
   })
+  @Get(':id')
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
   async findOne(@Param('id') id: string) {
     return this.leasesService.findOne(id);
   }
