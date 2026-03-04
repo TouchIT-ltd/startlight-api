@@ -128,21 +128,28 @@ export class LeasesController {
   @Get('my-lease')
   @ApiTags('Tenant Portal')
   @ApiOperation({ summary: "Get current user's lease (uses authenticated user context)" })
+  @ApiQuery({ name: 'leaseId', required: false, type: String, description: 'Specific lease ID to fetch' })
+  @ApiQuery({ name: 'userId', required: false, type: String, description: 'User ID (for admins to view a tenant lease)' })
   @ApiResponse({
     status: 200,
     description: 'User lease found',
     type: LeaseResponseDto,
   })
+  @ApiResponse({
+    status: 404,
+    description: 'No active lease found',
+  })
   async findMyLease(
     @Request() req: any,
+    @Query('leaseId') leaseId?: string,
+    @Query('userId') userId?: string,
   ) {
-    const { leaseId, userId } = req.query;
     // If a leaseId is provided, return by lease id
     if (leaseId) {
-      return this.leasesService.findOne(leaseId as string);
+      return this.leasesService.findOne(leaseId);
     }
 
-    const uid = (userId as string) || req.user?.id;
+    const uid = userId || req.user?.id;
     return this.leasesService.findMyLease(uid);
   }
 

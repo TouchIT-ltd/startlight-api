@@ -386,9 +386,11 @@ export class PaymentService {
 
         // Handle UNIT payment: create lease directly for this unit
         if (payment.resourceType === 'UNIT') {
+            this.logger.log(`Processing UNIT payment for unit ${payment.resourceId}`);
             try {
                 const unit = await this.mongoDb.findOne('units', payment.resourceId);
                 if (unit) {
+                    this.logger.log(`Found unit ${unit.unitNumber} for payment. Linking tenant ${payment.userId}`);
                     const now = new Date();
                     const startDate = now.toISOString().split('T')[0];
                     const end = new Date(now);
@@ -405,13 +407,16 @@ export class PaymentService {
                         status: 'active',
                     };
 
+                    this.logger.log(`Creating lease with data: ${JSON.stringify(leaseData)}`);
                     const createdLease = await this.leasesService.create(leaseData);
+                    this.logger.log(`Successfully created lease ${createdLease.id}`);
 
                     // Mark unit as occupied and link tenant
                     await this.unitsService.update(unit.id, {
                         status: 'occupied',
                         tenantId: payment.userId,
                     });
+                    this.logger.log(`Unit ${unit.unitNumber} marked as occupied for tenant ${payment.userId}`);
 
                     await this.notificationsService.create({
                         userId: payment.userId,
@@ -420,6 +425,8 @@ export class PaymentService {
                         type: 'LEASE_CREATED',
                         entityId: createdLease.id,
                     });
+                } else {
+                    this.logger.error(`Unit ${payment.resourceId} not found during processing of payment ${payment.id}`);
                 }
             } catch (err) {
                 this.logger.error('Failed to auto-create lease for UNIT payment: ' + String(err));
