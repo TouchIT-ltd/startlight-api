@@ -16,17 +16,19 @@ export class RentRequestsService {
   async create(data: any): Promise<any> {
     console.log('Creating rent request with data:', data);
 
-    // Fetch unit to get price and propertyId (if not provided or to validate)
+    // Set default status to pending and use unit price
     const unit = await this.mongoDb.findOne('units', data.unitId);
     if (!unit) {
       throw new NotFoundException(`Unit with ID ${data.unitId} not found`);
     }
 
-    // Set default status to pending and use unit price
+    const property = await this.mongoDb.findOne('properties', unit.propertyId);
+
     const requestData = {
       ...data,
       amount: unit.price, // Auto-calculated from unit
       propertyId: unit.propertyId, // Ensure propertyId matches unit
+      managerId: property?.managerId, // Include manager ID from property
       status: 'pending',
     };
 
@@ -37,7 +39,7 @@ export class RentRequestsService {
     status?: string;
     propertyId?: string;
     tenantId?: string;
-  } = {}): Promise<any> {
+  } = {}, userRole?: string): Promise<any> {
     const skip = (page - 1) * limit;
     let filter: any = {};
 
@@ -46,16 +48,17 @@ export class RentRequestsService {
     if (filters.propertyId) filter.propertyId = filters.propertyId;
     if (filters.tenantId) filter.tenantId = filters.tenantId;
 
-    if (userId) {
-      // Role-based filtering based on user role (this would need to be enhanced with actual user role checking)
-      // For now, assume manager filtering logic
-      const properties = await this.mongoDb.findAll('properties', { managerId: userId });
-      const propertyIds = properties.map(p => p.id);
-
-      const leases = await this.mongoDb.findAll('leases', { propertyId: { $in: propertyIds } });
-      const leaseIds = leases.map(l => l.id);
-
-      filter.leaseId = { $in: leaseIds };
+    if (userId && userRole) {
+      if (userRole === 'manager') {
+        filter.managerId = userId;
+      } else if (userRole === 'tenant') {
+        filter.tenantId = userId;
+      } else if (userRole === 'owner') {
+        const properties = await this.mongoDb.findAll('properties', { ownerId: userId });
+        const propertyIds = properties.map(p => p.id);
+        filter.propertyId = { $in: propertyIds };
+      }
+      // admins see everything, so no extra filter
     }
 
     const [items, total] = await Promise.all([

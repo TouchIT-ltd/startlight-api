@@ -76,11 +76,12 @@ export class RentRequestsController {
     const p = parseInt(page, 10) || 1;
     const l = parseInt(limit, 10) || 10;
     const userId = req?.user?.id;
+    const userRole = req?.user?.role;
     return this.rentRequestsService.findAll(userId, p, l, {
       status,
       propertyId,
       tenantId,
-    });
+    }, userRole);
   }
 
   @Get(':id')

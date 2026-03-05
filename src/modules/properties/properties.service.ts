@@ -174,18 +174,21 @@ export class PropertiesService {
 
     if (!leases || leases.length === 0) return [];
 
-    const tenantIds = Array.from(new Set(leases.map((l: any) => l.tenantId).filter(Boolean)));
+    const tenantIds = Array.from(new Set(
+      leases.flatMap((l: any) => [l.tenantId, l.userId]).filter(Boolean)
+    ));
     const tenants = await this.mongoDb.findAll('users', { id: { $in: tenantIds } });
-    const tenantsById = new Map(tenants.map((t: any) => [t.id, t]));
+    const tenantsById = new Map(tenants.map((t: any) => [String(t.id), t]));
 
     // map each lease to a tenant entry
     const result = leases.map((lease: any) => {
-      const tenant = tenantsById.get(String(lease.tenantId));
+      const tenantId = lease.tenantId || lease.userId;
+      const tenant = tenantsById.get(String(tenantId));
       return {
-        id: tenant?.id || lease.tenantId,
-        fullname: tenant?.fullName || tenant?.fullname || '',
-        email: tenant?.email,
-        phone: tenant?.phone,
+        id: tenant?.id || tenantId,
+        fullname: tenant?.fullname || tenant?.fullName || '',
+        email: tenant?.email || '',
+        phoneNumber: tenant?.phoneNumber || tenant?.phone || '',
         unitNumber: lease.unitNumber || lease.unit || '',
         leaseStart: lease.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
         leaseEnd: lease.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
