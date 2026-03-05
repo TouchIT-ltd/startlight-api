@@ -216,6 +216,7 @@ export class LeasesService {
             amenities: unit.amenities || [],
             description: unit.description,
             status: unit.status,
+            propertySpecification: unit.propertySpecification,
           };
         }
       } catch (err: any) {
@@ -228,14 +229,29 @@ export class LeasesService {
       try {
         const property = await this.mongoDb.findOne('properties', lease.propertyId);
         if (property) {
-          lease.property = {
+          const propDetails: any = {
             id: property.id,
             name: property.name,
             address: property.address,
             description: property.description,
             images: property.images || [],
             image: property.image,
+            totalUnits: property.totalUnits,
+            ownerEmail: property.ownerEmail,
+            managerEmail: property.managerEmail,
           };
+
+          // Enrich with emails if missing from property object but IDs exist
+          if (!propDetails.ownerEmail && property.ownerId) {
+            const owner = await this.mongoDb.findOne('users', property.ownerId);
+            if (owner) propDetails.ownerEmail = owner.email;
+          }
+          if (!propDetails.managerEmail && property.managerId) {
+            const manager = await this.mongoDb.findOne('users', property.managerId);
+            if (manager) propDetails.managerEmail = manager.email;
+          }
+
+          lease.property = propDetails;
         }
       } catch (err: any) {
         this.logger.warn(`Failed to populate property details for lease ${lease.id}: ${err.message}`);
