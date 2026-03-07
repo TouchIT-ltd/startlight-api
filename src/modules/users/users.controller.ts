@@ -101,6 +101,53 @@ export class UsersController {
     return this.usersService.create(createUserDto, file, creatorId);
   }
 
+  @Post('admin-create')
+  @Roles(UserRole.ADMIN)
+  @ApiBearerAuth()
+  @ApiTags('Admin Portal')
+  @ApiOperation({
+    summary: 'Admin: Create a new user with auto-password',
+    description: 'Access: ADMIN only - Generate temporary password and send via email'
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        fullname: { type: 'string', example: 'John Admin Doe' },
+        email: { type: 'string', example: 'tenant@example.com' },
+        phoneNumber: { type: 'string', example: '+1234567890' },
+        role: {
+          type: 'string',
+          enum: ['tenant', 'manager', 'owner', 'admin'],
+          example: 'tenant'
+        },
+        ninSlip: {
+          type: 'string',
+          format: 'binary',
+          description: 'NIN Slip Image (JPG, PNG, WebP) or Document (PDF)'
+        },
+      },
+      required: ['fullname', 'email', 'phoneNumber', 'role'],
+    },
+  })
+  @UseInterceptors(
+    FileInterceptor('ninSlip', {
+      storage: memoryStorage(),
+    }),
+  )
+  async adminCreate(
+    @Body() createUserDto: any,
+    @UploadedFile() file?: any,
+    @Request() req?: any,
+  ) {
+    return this.usersService.create(
+      { ...createUserDto, isAdminCreation: true },
+      file,
+      req?.user?.id,
+    );
+  }
+
   @Get('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -261,5 +308,29 @@ export class UsersController {
     @UploadedFile() file?: any,
   ) {
     return this.usersService.updateProfile(req.user.id, updateProfileDto, file);
+  }
+
+  @Patch('auth/update-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiTags('Tenant Portal', 'Owner Portal', 'Manager Portal', 'Admin Portal')
+  @ApiOperation({
+    summary: 'Update password (e.g. for first login)',
+    description: 'Update the password and clear the forceUpdatePassword flag'
+  })
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        newPassword: { type: 'string', example: 'NewSecurePassword123!' },
+      },
+      required: ['newPassword'],
+    },
+  })
+  async updatePassword(
+    @Request() req: any,
+    @Body('newPassword') newPassword: string,
+  ) {
+    return this.usersService.updatePassword(req.user.id, newPassword);
   }
 }

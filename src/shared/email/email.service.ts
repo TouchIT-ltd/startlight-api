@@ -142,6 +142,54 @@ export class EmailService {
     return this.sendEmail(to, subject, html);
   }
 
+  async sendTemporaryPasswordEmail(
+    to: string,
+    password: string,
+    fullname: string,
+  ): Promise<boolean> {
+    const subject = 'Your Secure Access - Starlight App';
+    const loginUrl = `${this.configService.get('APP_URL') || 'https://starlightapp.com'}/login`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0;">🔐 Account Created</h1>
+          <p style="margin: 10px 0 0; opacity: 0.9;">Starlight App</p>
+        </div>
+
+        <div style="padding: 30px; background: #f9f9f9;">
+          <h2>Hello ${fullname},</h2>
+          <p>An account has been created for you on Starlight. For your security, a temporary password has been generated.</p>
+          
+          <div style="background: white; border-radius: 10px; padding: 25px; margin: 20px 0; border: 1px solid #e0e0e0;">
+            <p style="margin: 0 0 10px; color: #666; font-size: 14px;">Your login credentials:</p>
+            <div style="background: #f4f4f4; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px;">
+              <strong>Email:</strong> ${to}<br>
+              <strong>Password:</strong> ${password}
+            </div>
+          </div>
+
+          <p style="color: #ff4d4d; font-weight: bold; font-size: 14px;">
+            ⚠️ You will be required to change this password during your first login.
+          </p>
+
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="${loginUrl}" style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+              Access My Account
+            </a>
+          </div>
+
+          <p>If you have any questions, please contact our support team.</p>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
+            <p>This is an automated message. Please do not reply directly to this email.</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return this.sendEmail(to, subject, html);
+  }
+
   async sendEmail(
     to: string,
     subject: string,

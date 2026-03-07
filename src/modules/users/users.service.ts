@@ -7,6 +7,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { CloudinaryService } from '../../shared/services/cloudinary.service';
+import { EmailService } from '../../shared/email/email.service';
 
 @Injectable()
 export class UsersService {
@@ -15,6 +16,7 @@ export class UsersService {
   constructor(
     private mongoDb: MongoDatabaseService,
     private cloudinaryService: CloudinaryService,
+    private emailService: EmailService,
   ) {
     this.seedUsers();
   }
@@ -108,7 +110,17 @@ export class UsersService {
       throw new ConflictException('User with this email already exists');
     }
 
-    const hashedPassword = await this.hashPassword(userData.password);
+    let passwordToHash = userData.password;
+    let forceUpdatePassword = false;
+
+    // Admin creation logic
+    if (userData.isAdminCreation) {
+      // Generate random 12 character password
+      passwordToHash = crypto.randomBytes(8).toString('base64').substring(0, 12);
+      forceUpdatePassword = true;
+    }
+
+    const hashedPassword = await this.hashPassword(passwordToHash);
 
     // Handle file upload for ninSlip
     let ninSlipUrl = userData.ninSlip;
@@ -148,9 +160,19 @@ export class UsersService {
       nameSlipImage: ninSlipUrl,
       role: userData.role,
       isActive: true,
-      emailVerified: false,
+      emailVerified: userData.isAdminCreation ? true : false, // Auto-verify if admin created
+      forceUpdatePassword,
       pushNotificationId: null,
     });
+
+    if (userData.isAdminCreation) {
+      // Send email with temporary password
+      await this.emailService.sendTemporaryPasswordEmail(
+        userData.email,
+        passwordToHash,
+        userData.fullname,
+      );
+    }
 
     const { password, ...userWithoutPassword } = user;
     return userWithoutPassword;
@@ -353,5 +375,21 @@ export class UsersService {
       message: 'Profile updated successfully',
       user: userWithoutPassword,
     };
+  }
+
+  async updatePassword(userId: string, newPassword: string): Promise<any> {
+    const hashedPassword = await this.hashPassword(newPassword);
+    const updatedUser = await this.mongoDb.update(this.collectionName, userId, {
+      password: hashedPassword,
+      forceUpdatePassword: false, // Ensure flag is cleared
+      updatedAt: new Date(),
+    });
+
+    if (!updatedUser) {
+      throw new NotFoundException(`User with ID ${userId} not found`);
+    }
+
+    const { password, ...userWithoutPassword } = updatedUser;
+    return userWithoutPassword;
   }
 }
