@@ -95,13 +95,25 @@ export class CreateApartmentDto {
   @IsIn(['month', 'year'])
   minTermUnit!: 'month' | 'year';
 
-  @ApiPropertyOptional({
-    description: 'Amenities available in this apartment (comma-separated)',
-    example: 'WiFi, Parking, Pool'
-  })
+  @ApiPropertyOptional({ example: ['WiFi', 'Parking', 'Pool'] })
   @IsOptional()
-  @IsString()
-  amenities?: string;
+  @Transform(({ value }) => {
+    if (!value) return [];
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+    }
+    return Array.isArray(value) ? value : [];
+  })
+  @IsArray()
+  @IsString({ each: true })
+  amenities?: string[];
 
   @ApiPropertyOptional({
     example: [],

@@ -104,11 +104,10 @@ export class CreateUnitDto {
   image?: string;
 
   @ApiPropertyOptional({
-    description: 'Amenities available in this unit (comma-separated)',
-    example: 'Air Conditioning, Parking, Wi-Fi',
-    type: String,
+    description: 'List of amenities available in this unit',
+    example: ['Air Conditioning', 'Parking', 'Wi-Fi'],
+    type: [String],
   })
   @IsOptional()
-  @IsString()
-  amenities?: string;
+  amenities?: string[];
 }

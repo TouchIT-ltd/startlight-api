@@ -37,11 +37,8 @@ export class ApartmentResponseDto {
   @ApiProperty({ example: 'month', enum: ['month', 'year'] })
   minTermUnit!: 'month' | 'year';
 
-  @ApiPropertyOptional({
-    description: 'Amenities available in this apartment',
-    example: 'WiFi, Parking, Pool'
-  })
-  amenities?: string;
+  @ApiPropertyOptional({ example: ['WiFi', 'Parking', 'Pool'] })
+  amenities?: string[];
 
   @ApiPropertyOptional({
     example: [
