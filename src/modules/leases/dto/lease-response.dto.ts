@@ -37,7 +37,7 @@ export class LeaseResponseDto {
       unitNumber: 'A101',
       price: 1200,
       images: ['url1', 'url2'],
-      amenities: ['Wifi', 'Parking']
+      amenities: 'Wifi, Parking'
     }
   })
   unit?: any;
