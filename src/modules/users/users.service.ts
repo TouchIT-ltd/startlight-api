@@ -22,31 +22,18 @@ export class UsersService {
   }
 
   private async seedUsers(): Promise<void> {
-    const count = await this.mongoDb.count(this.collectionName);
-    if (count === 0) {
+    const adminCount = await this.mongoDb.count(this.collectionName, { role: 'admin' });
+    if (adminCount === 0) {
+      console.log('No admin found. Seeding default admin...');
       await this.create({
-        fullname: 'Admin User',
-        email: 'admin@example.com',
-        password: 'admin123',
-        phoneNumber: '+1234567890',
-        role: 'owner',
+        fullname: 'System Admin',
+        email: 'admin@starlight.com',
+        password: 'AdminPassword123!',
+        phoneNumber: '+2340000000000',
+        role: 'admin',
+        isAdminCreation: true, // This will trigger forceUpdatePassword and notification logic (though notification might fail if mailjet is dev)
       });
-
-      await this.create({
-        fullname: 'John Doe',
-        email: 'john@example.com',
-        password: 'password123',
-        phoneNumber: '+0987654321',
-        role: 'tenant',
-      });
-
-      await this.create({
-        fullname: 'Jane Smith',
-        email: 'jane@example.com',
-        password: 'password123',
-        phoneNumber: '+1122334455',
-        role: 'tenant',
-      });
+      console.log('Default admin seeded: admin@starlight.com / AdminPassword123!');
     }
   }
 
@@ -88,6 +75,17 @@ export class UsersService {
       // Tenant cannot create any accounts
       else if (creatorRole === 'tenant') {
         throw new ConflictException('Tenant cannot create user accounts');
+      }
+    } else {
+      // Public Registration (No creatorUserId)
+      const { role: targetRole } = userData;
+      if (targetRole && targetRole !== 'tenant' && !userData.isAdminCreation) {
+        throw new ConflictException('Only tenant accounts can be created through public registration');
+      }
+
+      // Force role to tenant for public signup
+      if (!userData.isAdminCreation) {
+        userData.role = 'tenant';
       }
     }
 
