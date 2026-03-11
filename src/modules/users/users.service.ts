@@ -113,8 +113,10 @@ export class UsersService {
 
     // Admin creation logic
     if (userData.isAdminCreation) {
-      // Generate random 12 character password
-      passwordToHash = crypto.randomBytes(8).toString('base64').substring(0, 12);
+      // Generate random 12 character password if not already provided (e.g. via seeding)
+      if (!passwordToHash) {
+        passwordToHash = crypto.randomBytes(9).toString('base64').substring(0, 12);
+      }
       forceUpdatePassword = true;
     }
 
