@@ -150,7 +150,17 @@ export class LeasesController {
     }
 
     const uid = userId || req.user?.id;
-    return this.leasesService.findMyLease(uid);
+    const lease = await this.leasesService.findMyLease(uid);
+
+    if (!lease) {
+      return {
+        message: 'No active lease found',
+        data: null,
+        hasLease: false
+      };
+    }
+
+    return lease;
   }
 
   @Get(':id')

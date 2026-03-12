@@ -174,7 +174,8 @@ export class LeasesService {
       });
 
       if (!item) {
-        throw new NotFoundException(`No active lease found for user ${userId}`);
+        this.logger.log(`No active lease found for user ${userId}`);
+        return null;
       }
 
       return this._populateLeaseDetails(item);
