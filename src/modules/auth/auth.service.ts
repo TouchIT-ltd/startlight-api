@@ -22,10 +22,11 @@ import { LoginDto } from './dto/login.dto';
 
 // Define return interfaces for better type safety
 export interface AuthResponse {
-  user: any; // Ideally this should be a User interface
+  user?: any; // Ideally this should be a User interface
   accessToken?: string;
   message?: string;
   otpDetails?: OtpResponse; // Details for dev or debugging
+  requiresOtp?: boolean;
 }
 
 export interface OtpResponse {
@@ -39,6 +40,7 @@ export interface OtpResponse {
   resetToken?: string;
   expiresIn?: number;
   user?: any; // User object
+  accessToken?: string; // Add this for automatic login after verify
 }
 
 @Injectable()
@@ -142,13 +144,6 @@ export class AuthService {
     const user = await this.usersService.findByEmail(email);
 
     if (user && (await bcrypt.compare(password, user.password))) {
-      // Check if email is verified
-      if (!user.emailVerified) {
-        throw new UnauthorizedException(
-          'Please verify your email before logging in',
-        );
-      }
-
       const { password, ...result } = user;
       return result;
     }
@@ -160,6 +155,20 @@ export class AuthService {
 
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Check if email is verified
+    if (!user.emailVerified) {
+      if (user.role === 'manager' || user.role === 'owner') {
+        const otpResponse = await this.generateAndSendOtp(user.email, 'signup');
+        return {
+          requiresOtp: true,
+          message: 'Please verify your email with the OTP sent to your inbox.',
+          otpDetails: otpResponse,
+        };
+      } else {
+        throw new UnauthorizedException('Please verify your email before logging in');
+      }
     }
 
     // Save pushNotificationId if provided
@@ -278,8 +287,15 @@ export class AuthService {
       // Clear OTP after successful verification
       this.otpStore.delete(email);
 
+      // Successfully verified manager/owner (or any signup), log them in by returning an access token
+      const payload = { email: updatedUser.email, sub: updatedUser.id, role: updatedUser.role };
+      const accessToken = this.jwtService.sign(payload, {
+        expiresIn: this.configService.get('config.jwt.expiration'),
+      });
+
       return {
         message: 'Email verified successfully',
+        accessToken, // Log them in immediately
         user: {
           id: updatedUser.id,
           email: updatedUser.email,

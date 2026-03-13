@@ -159,8 +159,7 @@ export class UsersService {
       phoneNumber: userData.phoneNumber,
       nameSlipImage: ninSlipUrl,
       role: userData.role,
-      isActive: true,
-      emailVerified: userData.isAdminCreation ? true : false, // Auto-verify if admin created
+      emailVerified: userData.isAdminCreation && userData.role === 'admin' ? true : false, // Auto-verify only if admin created another admin
       forceUpdatePassword,
       pushNotificationId: null,
     });
