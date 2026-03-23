@@ -111,8 +111,10 @@ export class UsersService {
     let passwordToHash = userData.password;
     let forceUpdatePassword = false;
 
-    // Admin creation logic
-    if (userData.isAdminCreation) {
+    const isCreatedByAdminOrOwner = userData.isAdminCreation || !!creatorUserId;
+
+    // Admin or Owner creation logic
+    if (isCreatedByAdminOrOwner) {
       // Generate random 12 character password if not already provided (e.g. via seeding)
       if (!passwordToHash) {
         passwordToHash = crypto.randomBytes(9).toString('base64').substring(0, 12);
@@ -159,12 +161,13 @@ export class UsersService {
       phoneNumber: userData.phoneNumber,
       nameSlipImage: ninSlipUrl,
       role: userData.role,
-      emailVerified: userData.isAdminCreation && userData.role === 'admin' ? true : false, // Auto-verify only if admin created another admin
+      isActive: true,
+      emailVerified: isCreatedByAdminOrOwner ? true : false,
       forceUpdatePassword,
       pushNotificationId: null,
     });
 
-    if (userData.isAdminCreation) {
+    if (isCreatedByAdminOrOwner) {
       // Send email with temporary password
       await this.emailService.sendTemporaryPasswordEmail(
         userData.email,
