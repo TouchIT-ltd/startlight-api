@@ -167,16 +167,30 @@ export class UsersService {
       pushNotificationId: null,
     });
 
+    let emailResult = false;
+
     if (isCreatedByAdminOrOwner) {
-      // Send email with temporary password
-      await this.emailService.sendTemporaryPasswordEmail(
-        userData.email,
-        passwordToHash,
-        userData.fullname,
-      );
+      try {
+        emailResult = await this.emailService.sendTemporaryPasswordEmail(
+          userData.email,
+          passwordToHash,
+          userData.fullname,
+        );
+      } catch (err) {
+        console.error('Error sending temporary password email:', err);
+      }
     }
 
     const { password, ...userWithoutPassword } = user;
+
+    if (isCreatedByAdminOrOwner) {
+      const isDev = process.env.NODE_ENV === 'development';
+      if (isDev || !emailResult) {
+        (userWithoutPassword as any).temporaryPassword = passwordToHash;
+        (userWithoutPassword as any).emailDeliveryNote = emailResult ? 'Email sent successfully via Mailjet' : 'Email failed or dummy Mailjet client used';
+      }
+    }
+
     return userWithoutPassword;
   }
 
