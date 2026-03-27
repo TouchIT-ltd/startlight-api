@@ -127,13 +127,14 @@ export class ApartmentsService {
 
   async findAll(page = 1, limit = 10): Promise<any> {
     const skip = (page - 1) * limit;
+    const filter = { isDeleted: { $ne: true } };
     const [items, total] = await Promise.all([
       this.mongoDb.findAll(
         this.collection,
-        {},
+        filter,
         { skip, limit, sort: { createdAt: -1 } },
       ),
-      this.mongoDb.count(this.collection),
+      this.mongoDb.count(this.collection, filter),
     ]);
 
     return {
@@ -146,7 +147,7 @@ export class ApartmentsService {
 
   async findOne(id: string): Promise<any> {
     const item = await this.mongoDb.findOne(this.collection, id);
-    if (!item) {
+    if (!item || item.isDeleted) {
       throw new NotFoundException(`Apartment with ID ${id} not found`);
     }
     return item;

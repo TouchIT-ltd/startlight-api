@@ -236,7 +236,7 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<any> {
-    return this.mongoDb.findOneBy(this.collectionName, { email });
+    return this.mongoDb.findOneBy(this.collectionName, { email: new RegExp(`^${email}$`, 'i') });
   }
 
   async update(id: string, updateData: any): Promise<any> {

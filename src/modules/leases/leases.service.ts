@@ -328,6 +328,81 @@ export class LeasesService {
     }
   }
 
+  async renew(id: string, userId: string): Promise<any> {
+    try {
+      this.logger.log(`Renewing lease id=${id} for user=${userId}`);
+      const lease = await this.mongoDb.findOne(this.collection, id);
+      if (!lease) {
+        throw new NotFoundException(`Lease with ID ${id} not found`);
+      }
+
+      if (lease.userId !== userId && lease.tenantId !== userId) {
+        throw new ConflictException('You are not authorized to renew this lease');
+      }
+
+      const unit = await this.mongoDb.findOneBy('units', {
+        propertyId: lease.propertyId,
+        unitNumber: lease.unitNumber,
+      });
+
+      if (!unit) {
+        throw new NotFoundException('Associated unit not found');
+      }
+
+      const durationMonths = unit.duration || 12;
+      const price = unit.price || lease.rentAmount;
+
+      const currentEndDate = new Date(lease.endDate);
+      const now = new Date();
+      
+      let newStartDate = currentEndDate;
+      if (currentEndDate < now) {
+         newStartDate = now;
+      }
+      
+      const newEndDate = new Date(newStartDate);
+      newEndDate.setMonth(newEndDate.getMonth() + durationMonths);
+
+      const updatedLease = await this.mongoDb.update(this.collection, id, {
+        endDate: newEndDate.toISOString().split('T')[0],
+        status: 'active',
+        rentAmount: price,
+      });
+
+      const property = await this.mongoDb.findOne('properties', lease.propertyId);
+      await this.mongoDb.create('rent-requests', {
+        tenantId: userId,
+        userId: userId,
+        propertyId: lease.propertyId,
+        unitId: unit.id,
+        amount: price,
+        status: 'pending',
+        managerId: property?.managerId,
+        description: `Lease renewal for ${durationMonths} months`,
+        createdAt: new Date(),
+        updatedAt: new Date()
+      });
+
+      await this.auditLogsService.create({
+        userId: userId,
+        action: 'RENEW_LEASE',
+        entityType: 'lease',
+        entityId: id,
+        details: {
+          propertyId: lease.propertyId,
+          unitNumber: lease.unitNumber,
+          newEndDate: newEndDate.toISOString().split('T')[0]
+        },
+        createdAt: new Date(),
+      });
+
+      return updatedLease;
+    } catch (error: any) {
+      this.logger.error(`Error renewing lease: ${error.message}`);
+      throw error;
+    }
+  }
+
   async remove(id: string): Promise<{ message: string }> {
     try {
       const existing = await this.mongoDb.findOne(this.collection, id);

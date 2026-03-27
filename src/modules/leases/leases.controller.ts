@@ -163,6 +163,20 @@ export class LeasesController {
     return lease;
   }
 
+  @Post(':id/renew')
+  @Roles(UserRole.TENANT)
+  @ApiTags('Tenant Portal')
+  @ApiOperation({ summary: 'Renew an existing lease' })
+  @ApiParam({ name: 'id', description: 'Lease ID to renew' })
+  @ApiResponse({ status: 200, description: 'Lease extended successfully and rent request created' })
+  async renew(
+    @Param('id') id: string,
+    @Request() req: any
+  ) {
+    const userId = req.user.id;
+    return this.leasesService.renew(id, userId);
+  }
+
   @Get(':id')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
   @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')

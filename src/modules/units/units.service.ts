@@ -70,7 +70,9 @@ export class UnitsService {
     const filter: any = {};
 
     if (propertyId) filter.propertyId = propertyId;
-    if (filters.status) filter.status = filters.status;
+    if (filters.status) {
+      filter.status = filters.status === 'available' ? 'vacant' : filters.status;
+    }
     if (filters.tenantId) filter.tenantId = filters.tenantId;
 
     const [items, total] = await Promise.all([

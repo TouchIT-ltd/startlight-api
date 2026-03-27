@@ -19,6 +19,7 @@ import { ResetPasswordResponseDto } from './dto/reset-password-response.dto';
 import { SendSignupOtpDto } from './dto/send-signup-otp.dto';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
+import { ResendOtpDto } from './dto/resend-otp.dto';
 
 // Define return interfaces for better type safety
 export interface AuthResponse {
@@ -143,7 +144,8 @@ export class AuthService {
 
     if (user && (await bcrypt.compare(password, user.password))) {
       // Check if email is verified
-      if (!user.emailVerified) {
+      // Explicit false check prevents string bugs
+      if (user.emailVerified === false || user.emailVerified === 'false') {
         throw new UnauthorizedException(
           'Please verify your email before logging in',
         );
@@ -249,7 +251,7 @@ export class AuthService {
 
     if (new Date() > storedOtpData.expiresAt) {
       this.otpStore.delete(email);
-      throw new UnauthorizedException('OTP expired');
+      throw new UnauthorizedException('OTP expired. Please request a new one.');
     }
 
     if (storedOtpData.otp !== otp) {
@@ -373,5 +375,21 @@ export class AuthService {
     return {
       message: 'Logged out successfully',
     };
+  }
+
+  async resendOtp(resendOtpDto: ResendOtpDto): Promise<OtpResponse> {
+    const { email, purpose } = resendOtpDto;
+    
+    // Check if user exists
+    const user = await this.usersService.findByEmail(email);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
+    if (purpose === 'signup' && (user.emailVerified === true || user.emailVerified === 'true')) {
+      throw new BadRequestException('User is already verified');
+    }
+
+    return this.generateAndSendOtp(email, purpose);
   }
 }
