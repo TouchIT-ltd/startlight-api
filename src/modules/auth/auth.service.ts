@@ -6,6 +6,7 @@ import {
   InternalServerErrorException,
   Logger,
   HttpException,
+  ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -183,13 +184,28 @@ export class AuthService {
 
   async register(createUserDto: CreateUserDto, file?: Express.Multer.File): Promise<any> {
     try {
-      // 1. Check early if user exists (UsersService.create also checks, but checking here helps flow)
-      // We'll let UsersService.create handle the check & creation to avoid race conditions/redundancy
-
-      // CHECK: Ensure NIN Slip is provided for ALL users
-      // if (!file) {
-      //   throw new BadRequestException('NIN Slip is required');
-      // }
+      const email = createUserDto.email.toLowerCase();
+      createUserDto.email = email;
+      
+      const existingUser = await this.usersService.findByEmail(email);
+      if (existingUser) {
+        if (existingUser.emailVerified === false || existingUser.emailVerified === 'false') {
+          this.logger.log(`Resending OTP for unverified existing user: ${existingUser.email}`);
+          const otpResponse = await this.generateAndSendOtp(existingUser.email, 'signup');
+          return {
+            message: 'Account pending verification. New OTP sent.',
+            user: {
+              id: existingUser.id,
+              email: existingUser.email,
+              fullname: existingUser.fullname,
+              role: [existingUser.role],
+              emailVerified: existingUser.emailVerified,
+            },
+            otpDetails: otpResponse
+          };
+        }
+        throw new ConflictException('User with this email already exists');
+      }
 
       // 2. Create user with emailVerified: false
       const user = await this.usersService.create(createUserDto, file);

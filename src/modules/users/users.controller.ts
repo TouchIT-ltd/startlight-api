@@ -175,9 +175,9 @@ export class UsersController {
   }
 
   @Get()
-  @Roles(UserRole.ADMIN, UserRole.MANAGER)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.OWNER)
   @ApiBearerAuth()
-  @ApiTags('Admin Portal')
+  @ApiTags('Admin Portal', 'Owner Portal')
   @ApiOperation({
     summary: 'Get all users with filtering',
     description: 'Access: ADMIN only - List all users with optional filtering'
