@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+// import { ScheduleModule } from '@nestjs/schedule'; // Temporarily disabled
 import configuration from './config/configuration';
 import { SharedModule } from './shared/shared.module';
 import { UsersModule } from './modules/users/users.module';
@@ -22,6 +23,7 @@ import { PaymentModule } from './modules/payment/payment.module';
 
 @Module({
   imports: [
+    // ScheduleModule.forRoot(), // Temporarily disabled
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -46,5 +48,6 @@ import { PaymentModule } from './modules/payment/payment.module';
     AdminModule,
     PaymentModule,
   ],
+  providers: [],
 })
 export class AppModule { }

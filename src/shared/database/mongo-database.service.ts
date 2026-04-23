@@ -22,6 +22,74 @@ export class MongoDatabaseService implements OnModuleInit {
 
   async onModuleInit() {
     this.logger.log('MongoDB Database Service initialized');
+    await this.createIndexes();
+  }
+
+  /**
+   * Create database indexes for optimal query performance
+   */
+  private async createIndexes() {
+    try {
+      this.logger.log('Creating database indexes...');
+
+      if (!this.connection.db) {
+        this.logger.warn('Database connection not available, skipping index creation');
+        return;
+      }
+
+      // Lease indexes for efficient expiration queries
+      const leaseCollection = this.connection.db.collection('leases');
+
+      // Compound index for lease expiration queries: status + endDate
+      // This will make the cron job query very fast even with 1000+ leases
+      await leaseCollection.createIndex(
+        { status: 1, endDate: 1 },
+        {
+          name: 'leases_status_endDate',
+          background: true, // Create in background to avoid blocking
+        }
+      );
+
+      // Additional useful indexes for lease queries
+      await leaseCollection.createIndex(
+        { userId: 1, status: 1 },
+        { name: 'leases_userId_status', background: true }
+      );
+
+      await leaseCollection.createIndex(
+        { propertyId: 1, unitNumber: 1 },
+        { name: 'leases_property_unit', background: true }
+      );
+
+      // Rent requests indexes
+      const rentRequestCollection = this.connection.db.collection('rent-requests');
+      await rentRequestCollection.createIndex(
+        { unitId: 1, status: 1 },
+        { name: 'rent_requests_unitId_status', background: true }
+      );
+
+      await rentRequestCollection.createIndex(
+        { userId: 1, status: 1 },
+        { name: 'rent_requests_userId_status', background: true }
+      );
+
+      // Units indexes
+      const unitsCollection = this.connection.db.collection('units');
+      await unitsCollection.createIndex(
+        { propertyId: 1, unitNumber: 1 },
+        { name: 'units_property_unitNumber', background: true }
+      );
+
+      await unitsCollection.createIndex(
+        { status: 1 },
+        { name: 'units_status', background: true }
+      );
+
+      this.logger.log('Database indexes created successfully');
+    } catch (error) {
+      this.logger.error('Error creating database indexes:', error);
+      // Don't throw error to prevent app startup failure
+    }
   }
 
   // Get or create model for collection

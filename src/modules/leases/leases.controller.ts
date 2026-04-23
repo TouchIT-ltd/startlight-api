@@ -18,6 +18,7 @@ import {
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
 import { LeasesService } from './leases.service';
+import { LeaseSchedulerService } from './lease-scheduler.service';
 import { CreateLeaseDto } from './dto/create-lease.dto';
 import { LeaseResponseDto } from './dto/lease-response.dto';
 import { PaginatedLeasesDto } from './dto/paginated-leases.dto';
@@ -37,7 +38,10 @@ import {
 @Controller('leases')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class LeasesController {
-  constructor(private readonly leasesService: LeasesService) { }
+  constructor(
+    private readonly leasesService: LeasesService,
+    private readonly leaseSchedulerService: LeaseSchedulerService,
+  ) { }
 
   @Post()
   @Roles(UserRole.ADMIN)
@@ -271,5 +275,33 @@ export class LeasesController {
   @ApiResponse({ status: 200, description: 'Lease deleted successfully' })
   async remove(@Param('id') id: string) {
     return this.leasesService.remove(id);
+  }
+
+  @Post('expire-leases')
+  @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
+  @ApiOperation({
+    summary: 'Manually trigger lease expiration check (for testing)',
+    description: 'This endpoint manually runs the lease expiration logic that normally runs daily at midnight'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Lease expiration check completed',
+    schema: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        processed: { type: 'number' },
+        errors: { type: 'number' }
+      }
+    }
+  })
+  async expireLeasesManually() {
+    const result = await this.leaseSchedulerService.expireLeasesManually();
+    return {
+      message: 'Lease expiration check completed',
+      processed: result.processed,
+      errors: result.errors,
+    };
   }
 }
