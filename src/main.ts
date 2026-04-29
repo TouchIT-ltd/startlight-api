@@ -2,20 +2,25 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
-import * as express from 'express';
+import express from 'express';
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger';
 import { join } from 'path';
 import { NestExpressApplication } from '@nestjs/platform-express';
-// import * as compression from 'compression';
+import { ExpressAdapter } from '@nestjs/platform-express';
+
+const server = express();
 
 async function bootstrap() {
-  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModule,
+    new ExpressAdapter(server), // 👈 pass the express instance
+  );
+
   const configService = app.get(ConfigService);
 
   // Security
   app.use(helmet());
-  // app.use(compression);
   app.use(express.urlencoded({ extended: true, limit: '50mb' }));
   app.use(express.json({ limit: '50mb' }));
 
@@ -24,8 +29,10 @@ async function bootstrap() {
     origin: configService.get('config.app.frontendUrl'),
     credentials: true,
   });
-  // Serve static files
+
+  // Serve static files — NOTE: won't work on Vercel (read-only filesystem)
   app.useStaticAssets(join(__dirname, '..', 'uploads'), { prefix: '/uploads' });
+
   // Global prefix
   app.setGlobalPrefix(configService.get('config.app.apiPrefix') as string);
 
@@ -45,12 +52,9 @@ async function bootstrap() {
   // Setup Swagger
   setupSwagger(app);
 
-  const port = configService.get('config.app.port');
-  await app.listen(port);
-
-  console.log(
-    `🚀 Application is running on: http://localhost:${port}/${configService.get('config.app.apiPrefix')}`,
-  );
-  console.log(`📚 Swagger documentation: http://localhost:${port}/api-docs`);
+  await app.init(); // 👈 use init() instead of listen()
 }
+
 bootstrap();
+
+export default server; // 👈 Vercel needs this
