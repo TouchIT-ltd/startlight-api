@@ -16,10 +16,10 @@ export class LeaseSchedulerService {
   ) {}
 
   /**
-   * Runs daily at midnight (00:00) to expire leases that have passed their end date
+   * Runs every 2 minutes to expire leases that have passed their end date (for testing renewal)
    * Uses compound index on (status, endDate) for optimal performance
    */
-  @Cron('0 0 * * *') // Every day at midnight
+  @Cron('*/2 * * * *') // Every 2 minutes
   async expireLeases() {
     try {
       this.logger.log('Starting daily lease expiration check...');
