@@ -17,7 +17,7 @@ export class LeasesService {
     private readonly mongoDb: MongoDatabaseService,
     private readonly cloudinaryService: CloudinaryService,
     private readonly auditLogsService: AuditLogsService,
-  ) { }
+  ) {}
 
   async create(data: any, file?: any): Promise<any> {
     try {
@@ -33,7 +33,9 @@ export class LeasesService {
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         ];
         if (!allowedMimes.includes(file.mimetype)) {
-          throw new ConflictException('Only PDF and Word documents are allowed');
+          throw new ConflictException(
+            'Only PDF and Word documents are allowed',
+          );
         }
 
         console.log('Uploading document to Cloudinary...');
@@ -75,14 +77,18 @@ export class LeasesService {
           propertyId: data?.propertyId,
           unitNumber: data?.unitNumber,
           stack: error.stack,
-        }
+        },
       };
       this.logger.error('Create lease error:', errorResponse);
       throw error;
     }
   }
 
-  async findAll(page = 1, limit = 10, filters: { propertyId?: string; userId?: string; role?: string } = {}): Promise<any> {
+  async findAll(
+    page = 1,
+    limit = 10,
+    filters: { propertyId?: string; userId?: string; role?: string } = {},
+  ): Promise<any> {
     const skip = (page - 1) * limit;
     const dbFilter: any = {};
 
@@ -92,8 +98,10 @@ export class LeasesService {
 
     if (filters.userId && filters.role) {
       if (filters.role === 'owner') {
-        const properties = await this.mongoDb.findAll('properties', { ownerId: filters.userId });
-        const propertyIds = properties.map(p => p.id);
+        const properties = await this.mongoDb.findAll('properties', {
+          ownerId: filters.userId,
+        });
+        const propertyIds = properties.map((p) => p.id);
         if (dbFilter.propertyId) {
           if (!propertyIds.includes(dbFilter.propertyId)) {
             return { data: [], total: 0, page, totalPages: 0 };
@@ -102,8 +110,10 @@ export class LeasesService {
           dbFilter.propertyId = { $in: propertyIds };
         }
       } else if (filters.role === 'manager') {
-        const properties = await this.mongoDb.findAll('properties', { managerId: filters.userId });
-        const propertyIds = properties.map(p => p.id);
+        const properties = await this.mongoDb.findAll('properties', {
+          managerId: filters.userId,
+        });
+        const propertyIds = properties.map((p) => p.id);
         if (dbFilter.propertyId) {
           if (!propertyIds.includes(dbFilter.propertyId)) {
             return { data: [], total: 0, page, totalPages: 0 };
@@ -115,16 +125,16 @@ export class LeasesService {
     }
 
     const [items, total] = await Promise.all([
-      this.mongoDb.findAll(
-        this.collection,
-        dbFilter,
-        { skip, limit, sort: { createdAt: -1 } },
-      ),
+      this.mongoDb.findAll(this.collection, dbFilter, {
+        skip,
+        limit,
+        sort: { createdAt: -1 },
+      }),
       this.mongoDb.count(this.collection, dbFilter),
     ]);
 
     const populatedItems = await Promise.all(
-      items.map(item => this._populateLeaseDetails(item))
+      items.map((item) => this._populateLeaseDetails(item)),
     );
 
     return {
@@ -153,7 +163,7 @@ export class LeasesService {
         leaseId: id,
         details: {
           stack: error.stack,
-        }
+        },
       };
       this.logger.error('Find lease error:', errorResponse);
       throw error;
@@ -170,7 +180,7 @@ export class LeasesService {
       // Support leases that reference the tenant as either `userId` or `tenantId`.
       const item = await this.mongoDb.findOneBy(this.collection, {
         $or: [{ userId }, { tenantId: userId }],
-        status: 'active',
+        // status: 'active',
       });
 
       if (!item) {
@@ -188,7 +198,7 @@ export class LeasesService {
         userId,
         details: {
           stack: error.stack,
-        }
+        },
       };
       this.logger.error('Find my lease error:', errorResponse);
       throw error;
@@ -221,14 +231,19 @@ export class LeasesService {
           };
         }
       } catch (err: any) {
-        this.logger.warn(`Failed to populate unit details for lease ${lease.id}: ${err.message}`);
+        this.logger.warn(
+          `Failed to populate unit details for lease ${lease.id}: ${err.message}`,
+        );
       }
     }
 
     // Populate Property Details
     if (lease.propertyId) {
       try {
-        const property = await this.mongoDb.findOne('properties', lease.propertyId);
+        const property = await this.mongoDb.findOne(
+          'properties',
+          lease.propertyId,
+        );
         if (property) {
           const propDetails: any = {
             id: property.id,
@@ -248,14 +263,19 @@ export class LeasesService {
             if (owner) propDetails.ownerEmail = owner.email;
           }
           if (!propDetails.managerEmail && property.managerId) {
-            const manager = await this.mongoDb.findOne('users', property.managerId);
+            const manager = await this.mongoDb.findOne(
+              'users',
+              property.managerId,
+            );
             if (manager) propDetails.managerEmail = manager.email;
           }
 
           lease.property = propDetails;
         }
       } catch (err: any) {
-        this.logger.warn(`Failed to populate property details for lease ${lease.id}: ${err.message}`);
+        this.logger.warn(
+          `Failed to populate property details for lease ${lease.id}: ${err.message}`,
+        );
       }
     }
 
@@ -279,7 +299,9 @@ export class LeasesService {
           'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         ];
         if (!allowedMimes.includes(file.mimetype)) {
-          throw new ConflictException('Only PDF and Word documents are allowed');
+          throw new ConflictException(
+            'Only PDF and Word documents are allowed',
+          );
         }
 
         documentUrl = await this.cloudinaryService.uploadImage(
@@ -321,7 +343,7 @@ export class LeasesService {
         leaseId: id,
         details: {
           stack: error.stack,
-        }
+        },
       };
       this.logger.error('Update lease error:', errorResponse);
       throw error;
@@ -337,7 +359,9 @@ export class LeasesService {
       }
 
       if (lease.userId !== userId && lease.tenantId !== userId) {
-        throw new ConflictException('You are not authorized to renew this lease');
+        throw new ConflictException(
+          'You are not authorized to renew this lease',
+        );
       }
 
       const unit = await this.mongoDb.findOneBy('units', {
@@ -354,12 +378,12 @@ export class LeasesService {
 
       const currentEndDate = new Date(lease.endDate);
       const now = new Date();
-      
+
       let newStartDate = currentEndDate;
       if (currentEndDate < now) {
-         newStartDate = now;
+        newStartDate = now;
       }
-      
+
       const newEndDate = new Date(newStartDate);
       newEndDate.setMonth(newEndDate.getMonth() + durationMonths);
 
@@ -369,7 +393,10 @@ export class LeasesService {
         rentAmount: price,
       });
 
-      const property = await this.mongoDb.findOne('properties', lease.propertyId);
+      const property = await this.mongoDb.findOne(
+        'properties',
+        lease.propertyId,
+      );
       await this.mongoDb.create('rent-requests', {
         tenantId: userId,
         userId: userId,
@@ -380,7 +407,7 @@ export class LeasesService {
         managerId: property?.managerId,
         description: `Lease renewal for ${durationMonths} months`,
         createdAt: new Date(),
-        updatedAt: new Date()
+        updatedAt: new Date(),
       });
 
       await this.auditLogsService.create({
@@ -391,7 +418,7 @@ export class LeasesService {
         details: {
           propertyId: lease.propertyId,
           unitNumber: lease.unitNumber,
-          newEndDate: newEndDate.toISOString().split('T')[0]
+          newEndDate: newEndDate.toISOString().split('T')[0],
         },
         createdAt: new Date(),
       });
@@ -421,7 +448,10 @@ export class LeasesService {
         action: 'DELETE_LEASE',
         entityType: 'lease',
         entityId: id,
-        details: { propertyId: existing.propertyId, unitNumber: existing.unitNumber },
+        details: {
+          propertyId: existing.propertyId,
+          unitNumber: existing.unitNumber,
+        },
         createdAt: new Date(),
       });
 
@@ -435,7 +465,7 @@ export class LeasesService {
         leaseId: id,
         details: {
           stack: error.stack,
-        }
+        },
       };
       this.logger.error('Delete lease error:', errorResponse);
       throw error;
