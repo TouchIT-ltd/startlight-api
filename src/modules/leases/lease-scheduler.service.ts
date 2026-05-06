@@ -16,23 +16,22 @@ export class LeaseSchedulerService {
   ) {}
 
   /**
-   * Runs every 2 minutes to expire leases that have passed their end date (for testing renewal)
-   * Uses compound index on (status, endDate) for optimal performance
+   * Runs every 2 minutes to expire leases that were created 2+ minutes ago (for testing renewal)
+   * Uses compound index on (status, createdAt) for optimal performance
    */
   @Cron('*/2 * * * *') // Every 2 minutes
   async expireLeases() {
     try {
-      this.logger.log('Starting daily lease expiration check...');
+      this.logger.log('Starting lease expiration check...');
 
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Set to start of day for consistent comparison
-      const todayString = today.toISOString().split('T')[0];
+      // Calculate 2 minutes ago for testing
+      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
 
-      // Query for active leases where endDate < today
-      // This query will use the compound index: { status: 1, endDate: 1 }
+      // Query for active leases that were created 2+ minutes ago
+      // This query will use the compound index: { status: 1, createdAt: 1 }
       const expiredLeases = await this.mongoDb.findAll(this.collection, {
         status: 'active',
-        endDate: { $lt: todayString }
+        createdAt: { $lt: twoMinutesAgo }
       });
 
       if (expiredLeases.length === 0) {
@@ -67,7 +66,7 @@ export class LeaseSchedulerService {
           totalFound: expiredLeases.length,
           processed: processedCount,
           errors: errorCount,
-          date: todayString
+          timestamp: new Date()
         },
         createdAt: new Date(),
       });
@@ -128,7 +127,7 @@ export class LeaseSchedulerService {
           details: {
             propertyId: lease.propertyId,
             unitNumber: lease.unitNumber,
-            endDate: lease.endDate,
+            createdAt: lease.createdAt,
             expiredAt: new Date()
           },
           createdAt: new Date(),
