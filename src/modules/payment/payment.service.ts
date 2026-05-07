@@ -328,11 +328,30 @@ export class PaymentService {
                     status: 'paid'
                 });
 
-                // Create lease automatically when a rent request is paid
+                // Create or update lease automatically when a rent request is paid
                 try {
                     // Fetch unit linked to this rent request
                     const unit = await this.mongoDb.findOne('units', rentRequest.unitId);
-                    if (unit) {
+                    const isRenewal = rentRequest.requestType === 'renewal' || rentRequest.description?.includes('renewal');
+
+                    if (isRenewal) {
+                        const leaseId = rentRequest.leaseId;
+                        if (leaseId) {
+                            const updateData: any = { status: 'active', rentAmount: rentRequest.amount || unit?.price };
+                            if (rentRequest.newEndDate) {
+                                updateData.endDate = rentRequest.newEndDate;
+                            }
+                            await this.mongoDb.update('leases', leaseId, updateData);
+
+                            await this.notificationsService.create({
+                                userId: rentRequest.userId,
+                                title: 'Lease Renewed',
+                                message: `Your lease for unit ${unit?.unitNumber || 'unknown'} has been successfully renewed.`,
+                                type: 'LEASE_RENEWED',
+                                entityId: leaseId,
+                            });
+                        }
+                    } else if (unit) {
                         const now = new Date();
                         const startDate = now.toISOString().split('T')[0];
                         const end = new Date(now);

@@ -387,16 +387,11 @@ export class LeasesService {
       const newEndDate = new Date(newStartDate);
       newEndDate.setMonth(newEndDate.getMonth() + durationMonths);
 
-      const updatedLease = await this.mongoDb.update(this.collection, id, {
-        endDate: newEndDate.toISOString().split('T')[0],
-        status: 'active',
-        rentAmount: price,
-      });
-
       const property = await this.mongoDb.findOne(
         'properties',
         lease.propertyId,
       );
+      
       await this.mongoDb.create('rent-requests', {
         tenantId: userId,
         userId: userId,
@@ -406,13 +401,16 @@ export class LeasesService {
         status: 'pending',
         managerId: property?.managerId,
         description: `Lease renewal for ${durationMonths} months`,
+        requestType: 'renewal',
+        leaseId: id,
+        newEndDate: newEndDate.toISOString().split('T')[0],
         createdAt: new Date(),
         updatedAt: new Date(),
       });
 
       await this.auditLogsService.create({
         userId: userId,
-        action: 'RENEW_LEASE',
+        action: 'INITIATE_RENEW_LEASE',
         entityType: 'lease',
         entityId: id,
         details: {
@@ -423,7 +421,7 @@ export class LeasesService {
         createdAt: new Date(),
       });
 
-      return updatedLease;
+      return lease;
     } catch (error: any) {
       this.logger.error(`Error renewing lease: ${error.message}`);
       throw error;
