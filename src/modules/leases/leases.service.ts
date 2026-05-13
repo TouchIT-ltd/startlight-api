@@ -400,10 +400,6 @@ export class LeasesService {
         {
           leaseId: id,
           status: 'pending',
-          $or: [
-            { requestType: { $regex: /^renewal$/i } },
-            { description: { $regex: /renewal/i } },
-          ],
         },
         { limit: 1, sort: { createdAt: -1 } },
       );
@@ -426,10 +422,6 @@ export class LeasesService {
             leaseId: id,
             status: 'pending',
             id: { $ne: existingPending.id },
-            $or: [
-              { requestType: { $regex: /^renewal$/i } },
-              { description: { $regex: /renewal/i } },
-            ],
           },
           { status: 'cancelled' },
         );

@@ -195,6 +195,35 @@ export class MongoDatabaseService implements OnModuleInit {
     }
   }
 
+  /**
+   * Atomic conditional update; returns the document after update (default) or null if no match.
+   * Use for idempotent "claim" patterns (e.g. only one worker may transition PENDING → SUCCESS).
+   */
+  async findOneAndUpdate(
+    collectionName: string,
+    filter: any,
+    data: any,
+    options: { new?: boolean } = {},
+  ): Promise<any | null> {
+    try {
+      const Model = this.getModel(collectionName);
+      const updatedEntity = await Model.findOneAndUpdate(
+        filter,
+        { ...data, updatedAt: new Date() },
+        { new: options.new ?? true },
+      ).exec();
+
+      if (updatedEntity) {
+        this.logger.debug(`findOneAndUpdate matched in ${collectionName}`);
+        return updatedEntity.toObject();
+      }
+      return null;
+    } catch (error) {
+      this.logger.error(`Error findOneAndUpdate in ${collectionName}:`, error);
+      throw error;
+    }
+  }
+
   // Update
   async update(
     collectionName: string,

@@ -262,21 +262,38 @@ export class PaymentService {
             const payment = await this.mongoDb.findOneBy(this.collectionName, { reference });
 
             if (payment) {
+                const normalizedGateway = this.normalizePaystackAmount(data.data);
                 const newStatus = data.data.status?.toUpperCase() || payment.status;
-                const updatePayload: any = { gatewayResponse: this.normalizePaystackAmount(data.data) };
 
-                if (newStatus === 'SUCCESS' && payment.status !== 'SUCCESS') {
-                    updatePayload.status = 'SUCCESS';
-                    updatePayload.paidAt = new Date();
-
-                    // Process successful payment: create lease, mark unit occupied, etc.
-                    await this._processSuccessfulPayment(payment);
-                } else if (newStatus !== 'SUCCESS' && payment.status === 'PENDING') {
-                    // mark as abandoned or failed so that frontend can reflect it
-                    updatePayload.status = newStatus;
+                if (newStatus === 'SUCCESS' && payment.status === 'PENDING') {
+                    // Atomically claim this payment so verify + webhook cannot both provision leases
+                    const claimed = await this.mongoDb.findOneAndUpdate(
+                        this.collectionName,
+                        { id: payment.id, status: 'PENDING' },
+                        {
+                            status: 'SUCCESS',
+                            paidAt: new Date(),
+                            gatewayResponse: normalizedGateway,
+                        },
+                        { new: true },
+                    );
+                    if (claimed) {
+                        await this._processSuccessfulPayment(claimed);
+                    } else {
+                        this.logger.log(
+                            `verifyPayment: payment ${payment.id} was not claimable as PENDING (likely webhook won the race); refreshing gateway data only`,
+                        );
+                        await this.mongoDb.update(this.collectionName, payment.id, {
+                            gatewayResponse: normalizedGateway,
+                        });
+                    }
+                } else {
+                    const updatePayload: any = { gatewayResponse: normalizedGateway };
+                    if (newStatus !== 'SUCCESS' && payment.status === 'PENDING') {
+                        updatePayload.status = newStatus;
+                    }
+                    await this.mongoDb.update(this.collectionName, payment.id, updatePayload);
                 }
-
-                await this.mongoDb.update(this.collectionName, payment.id, updatePayload);
             }
 
             return this.normalizePaystackAmount(data.data);
@@ -355,14 +372,33 @@ export class PaymentService {
 
         // Handle RENT_REQUEST payment: create lease, mark unit occupied
         if (payment.resourceType === 'RENT_REQUEST') {
-            const rentRequest = await this.mongoDb.findOne('rent-requests', payment.resourceId);
-            if (rentRequest) {
-                await this.mongoDb.update('rent-requests', payment.resourceId, {
+            // Only the first successful transition may run provisioning (duplicate Paystack callbacks / parallel verify+webhook)
+            const rentRequest = await this.mongoDb.findOneAndUpdate(
+                'rent-requests',
+                {
+                    id: payment.resourceId,
+                    status: { $in: ['pending', 'approved'] },
+                },
+                {
                     isPaid: true,
                     paidAt: new Date(),
-                    status: 'paid'
-                });
+                    status: 'paid',
+                },
+                { new: false },
+            );
 
+            if (!rentRequest) {
+                const latest = await this.mongoDb.findOne('rent-requests', payment.resourceId);
+                if (latest?.status === 'paid') {
+                    this.logger.log(
+                        `Rent request ${payment.resourceId} already fulfilled — skipping duplicate lease provisioning`,
+                    );
+                } else if (latest) {
+                    this.logger.warn(
+                        `Rent request ${payment.resourceId} is in state "${latest.status}"; cannot auto-fulfill`,
+                    );
+                }
+            } else {
                 // Create or update lease automatically when a rent request is paid
                 try {
                     // Fetch unit linked to this rent request
@@ -379,15 +415,19 @@ export class PaymentService {
                     if (isRenewal) {
                         let leaseId = rentRequest.leaseId;
                         if (!leaseId && unit) {
-                            const fallbackLease = await this.mongoDb.findOneBy('leases', {
-                                propertyId: unit.propertyId,
-                                unitNumber: unit.unitNumber,
-                                $or: [
-                                    { userId: rentRequest.userId },
-                                    { tenantId: rentRequest.userId },
-                                ],
-                            });
-                            leaseId = fallbackLease?.id;
+                            const candidates = await this.mongoDb.findAll(
+                                'leases',
+                                {
+                                    propertyId: unit.propertyId,
+                                    unitNumber: unit.unitNumber,
+                                    $or: [
+                                        { userId: rentRequest.userId },
+                                        { tenantId: rentRequest.userId },
+                                    ],
+                                },
+                                { limit: 1, sort: { updatedAt: -1, createdAt: -1 } },
+                            );
+                            leaseId = candidates[0]?.id;
                         }
                         if (leaseId) {
                             const updateData: any = { status: 'active', rentAmount: rentRequest.amount || unit?.price };
@@ -411,35 +451,82 @@ export class PaymentService {
                         end.setFullYear(end.getFullYear() + 1); // default 12-month lease
                         const endDate = end.toISOString().split('T')[0];
 
-                        const leaseData: any = {
-                            userId: rentRequest.userId,
-                            propertyId: unit.propertyId,
-                            unitNumber: unit.unitNumber,
-                            startDate,
-                            endDate,
-                            rentAmount: rentRequest.amount || unit.price,
-                            status: 'active',
-                        };
+                        const priorLeases = await this.mongoDb.findAll(
+                            'leases',
+                            {
+                                propertyId: unit.propertyId,
+                                unitNumber: unit.unitNumber,
+                                $or: [
+                                    { userId: rentRequest.userId },
+                                    { tenantId: rentRequest.userId },
+                                ],
+                            },
+                            { limit: 1, sort: { updatedAt: -1, createdAt: -1 } },
+                        );
+                        const existingLease = priorLeases[0];
 
-                        const createdLease = await this.leasesService.create(leaseData);
-                        this.logger.log(`lease created id=${createdLease.id}`);
+                        if (existingLease) {
+                            await this.mongoDb.update('leases', existingLease.id, {
+                                status: 'active',
+                                startDate,
+                                endDate,
+                                rentAmount: rentRequest.amount || unit.price,
+                            });
+                            this.logger.log(
+                                `Updated existing lease ${existingLease.id} instead of creating a duplicate for unit ${unit.unitNumber}`,
+                            );
 
-                        // Mark unit as occupied and link tenant
-                        await this.unitsService.update(unit.id, {
-                            status: 'occupied',
-                            tenantId: rentRequest.userId,
-                        });
+                            await this.unitsService.update(unit.id, {
+                                status: 'occupied',
+                                tenantId: rentRequest.userId,
+                            });
 
-                        // Cancel other pending rent requests for this unit
-                        await this.mongoDb.updateMany('rent-requests', { unitId: unit.id, status: 'pending' }, { status: 'cancelled' });
+                            await this.mongoDb.updateMany(
+                                'rent-requests',
+                                { unitId: unit.id, status: 'pending' },
+                                { status: 'cancelled' },
+                            );
 
-                        await this.notificationsService.create({
-                            userId: rentRequest.userId,
-                            title: 'Lease Created',
-                            message: `Lease created for unit ${unit.unitNumber}.`,
-                            type: 'LEASE_CREATED',
-                            entityId: createdLease.id,
-                        });
+                            await this.notificationsService.create({
+                                userId: rentRequest.userId,
+                                title: 'Lease Updated',
+                                message: `Your lease for unit ${unit.unitNumber} was updated after payment.`,
+                                type: 'LEASE_CREATED',
+                                entityId: existingLease.id,
+                            });
+                        } else {
+                            const leaseData: any = {
+                                userId: rentRequest.userId,
+                                propertyId: unit.propertyId,
+                                unitNumber: unit.unitNumber,
+                                startDate,
+                                endDate,
+                                rentAmount: rentRequest.amount || unit.price,
+                                status: 'active',
+                            };
+
+                            const createdLease = await this.leasesService.create(leaseData);
+                            this.logger.log(`lease created id=${createdLease.id}`);
+
+                            await this.unitsService.update(unit.id, {
+                                status: 'occupied',
+                                tenantId: rentRequest.userId,
+                            });
+
+                            await this.mongoDb.updateMany(
+                                'rent-requests',
+                                { unitId: unit.id, status: 'pending' },
+                                { status: 'cancelled' },
+                            );
+
+                            await this.notificationsService.create({
+                                userId: rentRequest.userId,
+                                title: 'Lease Created',
+                                message: `Lease created for unit ${unit.unitNumber}.`,
+                                type: 'LEASE_CREATED',
+                                entityId: createdLease.id,
+                            });
+                        }
                     } else {
                         // If unit not found, just notify
                         await this.notificationsService.create({
@@ -469,34 +556,67 @@ export class PaymentService {
                     end.setFullYear(end.getFullYear() + 1); // default 12-month lease
                     const endDate = end.toISOString().split('T')[0];
 
-                    const leaseData: any = {
-                        userId: payment.userId,
-                        propertyId: unit.propertyId,
-                        unitNumber: unit.unitNumber,
-                        startDate,
-                        endDate,
-                        rentAmount: unit.price,
-                        status: 'active',
-                    };
+                    const prior = await this.mongoDb.findAll(
+                        'leases',
+                        {
+                            propertyId: unit.propertyId,
+                            unitNumber: unit.unitNumber,
+                            $or: [{ userId: payment.userId }, { tenantId: payment.userId }],
+                        },
+                        { limit: 1, sort: { updatedAt: -1, createdAt: -1 } },
+                    );
+                    const existingLease = prior[0];
 
-                    this.logger.log(`Creating lease with data: ${JSON.stringify(leaseData)}`);
-                    const createdLease = await this.leasesService.create(leaseData);
-                    this.logger.log(`Successfully created lease ${createdLease.id}`);
+                    if (existingLease) {
+                        await this.mongoDb.update('leases', existingLease.id, {
+                            status: 'active',
+                            startDate,
+                            endDate,
+                            rentAmount: unit.price,
+                        });
+                        this.logger.log(
+                            `UNIT payment: updated existing lease ${existingLease.id} instead of duplicating for unit ${unit.unitNumber}`,
+                        );
+                        await this.unitsService.update(unit.id, {
+                            status: 'occupied',
+                            tenantId: payment.userId,
+                        });
+                        await this.notificationsService.create({
+                            userId: payment.userId,
+                            title: 'Lease Updated',
+                            message: `Your lease for unit ${unit.unitNumber} was updated after payment.`,
+                            type: 'LEASE_CREATED',
+                            entityId: existingLease.id,
+                        });
+                    } else {
+                        const leaseData: any = {
+                            userId: payment.userId,
+                            propertyId: unit.propertyId,
+                            unitNumber: unit.unitNumber,
+                            startDate,
+                            endDate,
+                            rentAmount: unit.price,
+                            status: 'active',
+                        };
 
-                    // Mark unit as occupied and link tenant
-                    await this.unitsService.update(unit.id, {
-                        status: 'occupied',
-                        tenantId: payment.userId,
-                    });
-                    this.logger.log(`Unit ${unit.unitNumber} marked as occupied for tenant ${payment.userId}`);
+                        this.logger.log(`Creating lease with data: ${JSON.stringify(leaseData)}`);
+                        const createdLease = await this.leasesService.create(leaseData);
+                        this.logger.log(`Successfully created lease ${createdLease.id}`);
 
-                    await this.notificationsService.create({
-                        userId: payment.userId,
-                        title: 'Lease Created',
-                        message: `Lease created for unit ${unit.unitNumber}.`,
-                        type: 'LEASE_CREATED',
-                        entityId: createdLease.id,
-                    });
+                        await this.unitsService.update(unit.id, {
+                            status: 'occupied',
+                            tenantId: payment.userId,
+                        });
+                        this.logger.log(`Unit ${unit.unitNumber} marked as occupied for tenant ${payment.userId}`);
+
+                        await this.notificationsService.create({
+                            userId: payment.userId,
+                            title: 'Lease Created',
+                            message: `Lease created for unit ${unit.unitNumber}.`,
+                            type: 'LEASE_CREATED',
+                            entityId: createdLease.id,
+                        });
+                    }
                 } else {
                     this.logger.error(`Unit ${payment.resourceId} not found during processing of payment ${payment.id}`);
                 }
@@ -529,19 +649,23 @@ export class PaymentService {
                 const payment = await this.mongoDb.findOneBy(this.collectionName, { reference });
 
                 if (payment) {
-                    if (payment.status !== 'SUCCESS') {
-                        // Mark as SUCCESS first to prevent race condition if verifyPayment is called simultaneously
-                        await this.mongoDb.update(this.collectionName, payment.id, {
+                    const claimed = await this.mongoDb.findOneAndUpdate(
+                        this.collectionName,
+                        { id: payment.id, status: 'PENDING' },
+                        {
                             status: 'SUCCESS',
                             paidAt: new Date(),
                             gatewayResponse: this.normalizePaystackAmount(data),
-                        });
-                        this.logger.log(`Payment ${reference} updated to SUCCESS via webhook`);
-
-                        // Process the payment (creates lease, etc.)
-                        await this._processSuccessfulPayment(payment);
+                        },
+                        { new: true },
+                    );
+                    if (claimed) {
+                        this.logger.log(`Payment ${reference} claimed as SUCCESS via webhook`);
+                        await this._processSuccessfulPayment(claimed);
                     } else {
-                        this.logger.log(`Payment ${reference} already marked as SUCCESS`);
+                        this.logger.log(
+                            `Payment ${reference} webhook: no PENDING row to claim (already processed or status=${payment.status})`,
+                        );
                     }
                 } else {
                     this.logger.error(`Payment record not found for reference ${reference} in webhook`);
