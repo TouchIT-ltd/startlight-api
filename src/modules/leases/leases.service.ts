@@ -391,22 +391,65 @@ export class LeasesService {
         'properties',
         lease.propertyId,
       );
-      
-      await this.mongoDb.create('rent-requests', {
-        tenantId: userId,
-        userId: userId,
-        propertyId: lease.propertyId,
-        unitId: unit.id,
-        amount: price,
-        status: 'pending',
-        managerId: property?.managerId,
-        description: `Lease renewal for ${durationMonths} months`,
-        requestType: 'renewal',
-        leaseId: id,
-        newEndDate: newEndDate.toISOString().split('T')[0],
-        createdAt: new Date(),
-        updatedAt: new Date(),
-      });
+
+      const newEndDateStr = newEndDate.toISOString().split('T')[0];
+      const renewalDescription = `Lease renewal for ${durationMonths} months`;
+
+      const [existingPending] = await this.mongoDb.findAll(
+        'rent-requests',
+        {
+          leaseId: id,
+          status: 'pending',
+          $or: [
+            { requestType: { $regex: /^renewal$/i } },
+            { description: { $regex: /renewal/i } },
+          ],
+        },
+        { limit: 1, sort: { createdAt: -1 } },
+      );
+
+      if (existingPending) {
+        await this.mongoDb.update('rent-requests', existingPending.id, {
+          amount: price,
+          unitId: unit.id,
+          propertyId: lease.propertyId,
+          managerId: property?.managerId,
+          description: renewalDescription,
+          requestType: 'renewal',
+          newEndDate: newEndDateStr,
+          tenantId: userId,
+          userId: userId,
+        });
+        await this.mongoDb.updateMany(
+          'rent-requests',
+          {
+            leaseId: id,
+            status: 'pending',
+            id: { $ne: existingPending.id },
+            $or: [
+              { requestType: { $regex: /^renewal$/i } },
+              { description: { $regex: /renewal/i } },
+            ],
+          },
+          { status: 'cancelled' },
+        );
+      } else {
+        await this.mongoDb.create('rent-requests', {
+          tenantId: userId,
+          userId: userId,
+          propertyId: lease.propertyId,
+          unitId: unit.id,
+          amount: price,
+          status: 'pending',
+          managerId: property?.managerId,
+          description: renewalDescription,
+          requestType: 'renewal',
+          leaseId: id,
+          newEndDate: newEndDateStr,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+      }
 
       await this.auditLogsService.create({
         userId: userId,
@@ -416,7 +459,7 @@ export class LeasesService {
         details: {
           propertyId: lease.propertyId,
           unitNumber: lease.unitNumber,
-          newEndDate: newEndDate.toISOString().split('T')[0],
+          newEndDate: newEndDateStr,
         },
         createdAt: new Date(),
       });

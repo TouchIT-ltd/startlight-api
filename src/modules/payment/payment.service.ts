@@ -297,6 +297,41 @@ export class PaymentService {
         }
     }
 
+    /**
+     * Detect lease renewal rent requests reliably (case-insensitive labels, and
+     * leaseId + unit alignment so we never create a second lease for a renewal payment).
+     */
+    private isRentRequestRenewal(
+        rentRequest: any,
+        unit: any | null,
+        linkedLease: any | null,
+    ): boolean {
+        const type =
+            rentRequest.requestType != null
+                ? String(rentRequest.requestType).toLowerCase()
+                : '';
+        if (type === 'renewal') {
+            return true;
+        }
+        const desc =
+            rentRequest.description != null
+                ? String(rentRequest.description).toLowerCase()
+                : '';
+        if (desc.includes('renewal')) {
+            return true;
+        }
+        if (rentRequest.leaseId && linkedLease && unit) {
+            const sameUnit =
+                linkedLease.propertyId === unit.propertyId &&
+                linkedLease.unitNumber === unit.unitNumber;
+            const sameTenant =
+                linkedLease.userId === rentRequest.userId ||
+                linkedLease.tenantId === rentRequest.userId;
+            return sameUnit && sameTenant;
+        }
+        return false;
+    }
+
     private async _processSuccessfulPayment(payment: any) {
         this.logger.log(`_processSuccessfulPayment start for payment.id=${payment.id} resourceType=${payment.resourceType}`);
         // Audit Log
@@ -332,10 +367,28 @@ export class PaymentService {
                 try {
                     // Fetch unit linked to this rent request
                     const unit = await this.mongoDb.findOne('units', rentRequest.unitId);
-                    const isRenewal = rentRequest.requestType === 'renewal' || rentRequest.description?.includes('renewal');
+                    const linkedLease = rentRequest.leaseId
+                        ? await this.mongoDb.findOne('leases', rentRequest.leaseId)
+                        : null;
+                    const isRenewal = this.isRentRequestRenewal(
+                        rentRequest,
+                        unit,
+                        linkedLease,
+                    );
 
                     if (isRenewal) {
-                        const leaseId = rentRequest.leaseId;
+                        let leaseId = rentRequest.leaseId;
+                        if (!leaseId && unit) {
+                            const fallbackLease = await this.mongoDb.findOneBy('leases', {
+                                propertyId: unit.propertyId,
+                                unitNumber: unit.unitNumber,
+                                $or: [
+                                    { userId: rentRequest.userId },
+                                    { tenantId: rentRequest.userId },
+                                ],
+                            });
+                            leaseId = fallbackLease?.id;
+                        }
                         if (leaseId) {
                             const updateData: any = { status: 'active', rentAmount: rentRequest.amount || unit?.price };
                             if (rentRequest.newEndDate) {
