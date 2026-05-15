@@ -16,6 +16,18 @@ export class RentRequestsService {
   async create(data: any): Promise<any> {
     console.log('Creating rent request with data:', data);
 
+    const tenantId = data.tenantId || data.userId;
+    if (tenantId) {
+      const activeLease = await this.mongoDb.findOneBy('leases', {
+        $or: [{ userId: tenantId }, { tenantId: tenantId }],
+        status: 'active',
+      });
+
+      if (activeLease) {
+        throw new ConflictException('You already have an active lease. You cannot rent another unit at this time.');
+      }
+    }
+
     // Set default status to pending and use unit price
     const unit = await this.mongoDb.findOne('units', data.unitId);
     if (!unit) {
