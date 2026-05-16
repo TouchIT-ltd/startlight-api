@@ -92,6 +92,16 @@ export class PaymentService {
                         throw new BadRequestException('Payment already completed for this request.');
                     }
 
+                    if (rentRequest.requestType !== 'renewal') {
+                        const activeLease = await this.mongoDb.findOneBy('leases', {
+                            $or: [{ userId }, { tenantId: userId }],
+                            status: 'active'
+                        });
+                        if (activeLease) {
+                            throw new BadRequestException('You already have an active lease. You cannot rent another unit at this time.');
+                        }
+                    }
+
                     amount = rentRequest.requestedAmount || rentRequest.amount; // Handle both naming conventions if any
                     resourceTitle = `Rent Request: ${rentRequest.requestType || 'Unit Rental'}`;
                     break;
@@ -121,6 +131,15 @@ export class PaymentService {
                     }
 
                     if (!unit) throw new NotFoundException('Unit not found');
+
+                    const activeLeaseForUnit = await this.mongoDb.findOneBy('leases', {
+                        $or: [{ userId }, { tenantId: userId }],
+                        status: 'active'
+                    });
+                    if (activeLeaseForUnit) {
+                        throw new BadRequestException('You already have an active lease. You cannot rent another unit at this time.');
+                    }
+
                     amount = unit.price;
                     resourceTitle = `Unit Payment: ${unit.unitNumber}`;
                     break;

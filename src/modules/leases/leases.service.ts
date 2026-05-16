@@ -23,6 +23,17 @@ export class LeasesService {
     try {
       console.log('Creating lease with data:', data);
 
+      const userId = data.userId || data.tenantId;
+      if (userId) {
+        const activeLease = await this.mongoDb.findOneBy('leases', {
+          $or: [{ userId: userId }, { tenantId: userId }],
+          status: 'active',
+        });
+        if (activeLease) {
+          throw new ConflictException('User already has an active lease. Cannot create another one.');
+        }
+      }
+
       // Handle file upload for documentUrl
       let documentUrl;
       if (file) {
