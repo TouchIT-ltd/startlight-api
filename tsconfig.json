@@ -7,8 +7,13 @@
     "experimentalDecorators": true,
     "allowSyntheticDefaultImports": true,
     "target": "ES2021",
-    "sourceMap": true,
+
+    "sourceMap": false,         // was true — no source maps in prod
+
     "outDir": "./dist",
+
+    "rootDir": "./src",          // explicit → output is dist/main.js
+
     "baseUrl": "./",
     "incremental": true,
     "skipLibCheck": true,
@@ -24,5 +29,14 @@
       "@shared/*": ["src/shared/*"],
       "@modules/*": ["src/modules/*"]
     }
-  }
+  },
+
+  "include": ["src/**/*"],         // only compile src/
+  "exclude": [                    // keep tests and deps out
+    "node_modules",
+    "dist",
+    "**/*.spec.ts",
+    "**/*.e2e-spec.ts"
+  ]
+
 }
