@@ -22,18 +22,22 @@ export class UsersService {
   }
 
   private async seedUsers(): Promise<void> {
-    const adminCount = await this.mongoDb.count(this.collectionName, { role: 'admin' });
+    const adminCount = await this.mongoDb.count(this.collectionName, {
+      role: 'admin',
+    });
     if (adminCount === 0) {
       console.log('No admin found. Seeding default admin...');
       await this.create({
         fullname: 'System Admin',
-        email: 'admin@starlight.com',
-        password: 'AdminPassword123!',
+        email: process.env.ADMIN_EMAIL || 'dhannunyunus@gmail.com',
+        password: process.env.ADMIN_PASSWORD || 'AdminPassword123!',
         phoneNumber: '+2340000000000',
         role: 'admin',
         isAdminCreation: true, // This will trigger forceUpdatePassword and notification logic (though notification might fail if mailjet is dev)
       });
-      console.log('Default admin seeded: admin@starlight.com / AdminPassword123!');
+      console.log(
+        'Default admin seeded: admin@starlight.com / AdminPassword123!',
+      );
     }
   }
 
@@ -42,14 +46,21 @@ export class UsersService {
     return bcrypt.hash(password, salt);
   }
 
-  async create(userData: any, file?: any, creatorUserId?: string): Promise<any> {
+  async create(
+    userData: any,
+    file?: any,
+    creatorUserId?: string,
+  ): Promise<any> {
     console.log('Creating user with data:', userData);
     console.log('Creator user ID:', creatorUserId);
 
     // Role-based creation restrictions
     if (creatorUserId) {
       console.log('Checking creator permissions for:', creatorUserId);
-      const creator = await this.mongoDb.findOne(this.collectionName, creatorUserId);
+      const creator = await this.mongoDb.findOne(
+        this.collectionName,
+        creatorUserId,
+      );
       if (!creator) {
         console.error('Creator not found:', creatorUserId);
         throw new ConflictException('Creator user not found');
@@ -80,7 +91,9 @@ export class UsersService {
       // Public Registration (No creatorUserId)
       const { role: targetRole } = userData;
       if (targetRole && targetRole !== 'tenant' && !userData.isAdminCreation) {
-        throw new ConflictException('Only tenant accounts can be created through public registration');
+        throw new ConflictException(
+          'Only tenant accounts can be created through public registration',
+        );
       }
 
       // Force role to tenant for public signup
@@ -93,10 +106,10 @@ export class UsersService {
       'File received:',
       file
         ? {
-          originalname: file.originalname,
-          size: file.size,
-          mimetype: file.mimetype,
-        }
+            originalname: file.originalname,
+            size: file.size,
+            mimetype: file.mimetype,
+          }
         : 'No file',
     );
 
@@ -117,7 +130,10 @@ export class UsersService {
     if (isCreatedByAdminOrOwner) {
       // Generate random 12 character password if not already provided (e.g. via seeding)
       if (!passwordToHash) {
-        passwordToHash = crypto.randomBytes(9).toString('base64').substring(0, 12);
+        passwordToHash = crypto
+          .randomBytes(9)
+          .toString('base64')
+          .substring(0, 12);
       }
       forceUpdatePassword = true;
     }
@@ -173,7 +189,7 @@ export class UsersService {
       try {
         emailResult = await this.emailService.sendTemporaryPasswordEmail(
           userData.email,
-          passwordToHash,
+          // passwordToHash,
           userData.fullname,
         );
       } catch (err) {
@@ -187,14 +203,20 @@ export class UsersService {
       const isDev = process.env.NODE_ENV === 'development';
       if (isDev || !emailResult) {
         (userWithoutPassword as any).temporaryPassword = passwordToHash;
-        (userWithoutPassword as any).emailDeliveryNote = emailResult ? 'Email sent successfully via Mailjet' : 'Email failed or dummy Mailjet client used';
+        (userWithoutPassword as any).emailDeliveryNote = emailResult
+          ? 'Email sent successfully via Mailjet'
+          : 'Email failed or dummy Mailjet client used';
       }
     }
 
     return userWithoutPassword;
   }
 
-  async findAll(page = 1, limit = 10, filters: { role?: string; isActive?: boolean } = {}): Promise<any> {
+  async findAll(
+    page = 1,
+    limit = 10,
+    filters: { role?: string; isActive?: boolean } = {},
+  ): Promise<any> {
     const skip = (page - 1) * limit;
 
     // Build filter query
@@ -236,7 +258,9 @@ export class UsersService {
   }
 
   async findByEmail(email: string): Promise<any> {
-    return this.mongoDb.findOneBy(this.collectionName, { email: new RegExp(`^${email}$`, 'i') });
+    return this.mongoDb.findOneBy(this.collectionName, {
+      email: new RegExp(`^${email}$`, 'i'),
+    });
   }
 
   async update(id: string, updateData: any): Promise<any> {
@@ -297,7 +321,9 @@ export class UsersService {
     return { message: 'User activated successfully' };
   }
 
-  async resetPassword(id: string): Promise<{ message: string; temporaryPassword: string }> {
+  async resetPassword(
+    id: string,
+  ): Promise<{ message: string; temporaryPassword: string }> {
     const user = await this.mongoDb.findOne(this.collectionName, id);
 
     if (!user) {
@@ -315,7 +341,8 @@ export class UsersService {
     });
 
     return {
-      message: 'Password reset successfully. User must change password on next login.',
+      message:
+        'Password reset successfully. User must change password on next login.',
       temporaryPassword,
     };
   }
@@ -373,14 +400,10 @@ export class UsersService {
     }
 
     // Update user
-    const updatedUser = await this.mongoDb.update(
-      this.collectionName,
-      id,
-      {
-        ...updateData,
-        updatedAt: new Date(),
-      },
-    );
+    const updatedUser = await this.mongoDb.update(this.collectionName, id, {
+      ...updateData,
+      updatedAt: new Date(),
+    });
 
     if (!updatedUser) {
       throw new NotFoundException(`User with ID ${id} not found`);

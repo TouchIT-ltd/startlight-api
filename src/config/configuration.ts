@@ -38,6 +38,11 @@ export default registerAs('config', () => ({
       fromEmail: process.env.EMAIL_FROM || 'noreply@starlightapp.com',
       fromName: process.env.EMAIL_FROM_NAME || 'Starlight App',
     },
+    brevo: {
+      apiKey: process.env.BREVO_API_KEY,
+      fromEmail: process.env.EMAIL_FROM || 'noreply@starlightapp.com',
+      fromName: process.env.EMAIL_FROM_NAME || 'Starlight App',
+    },
   },
   cloudinary: {
     cloudName: process.env.CLOUDINARY_CLOUD_NAME || 'dmtzusaxg',

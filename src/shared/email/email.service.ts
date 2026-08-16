@@ -1,13 +1,23 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Client, LibraryResponse, SendEmailV3_1 } from 'node-mailjet';
+import { Client, SendEmailV3_1 } from 'node-mailjet';
+import fetch from 'node-fetch';
+
+const BREVO_API_URL = 'https://api.brevo.com/v3/smtp/email';
 
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
   private mailjet: Client;
+  private readonly provider: string;
+  private readonly brevoApiKey?: string;
 
   constructor(private readonly configService: ConfigService) {
+    // Which provider to send through: 'mailjet' (default) or 'brevo'
+    this.provider = (
+      this.configService.get<string>('EMAIL_PROVIDER') || 'mailjet'
+    ).toLowerCase();
+
     const apiKey = this.configService.get<string>('MAILJET_API_KEY');
     const secretKey = this.configService.get<string>('MAILJET_SECRET_KEY');
 
@@ -26,6 +36,17 @@ export class EmailService {
         apiKey: 'dummy',
         apiSecret: 'dummy',
       });
+    }
+
+    this.brevoApiKey = this.configService.get<string>('BREVO_API_KEY');
+    if (this.provider === 'brevo') {
+      if (this.brevoApiKey) {
+        this.logger.log('✅ Brevo email service initialized');
+      } else {
+        this.logger.warn(
+          '⚠️ Brevo credentials not configured. Email service in development mode.',
+        );
+      }
     }
   }
 
@@ -69,10 +90,7 @@ export class EmailService {
     return this.sendEmail(to, subject, html);
   }
 
-  async sendWelcomeEmail(
-    to: string,
-    fullname: string,
-  ): Promise<boolean> {
+  async sendWelcomeEmail(to: string, fullname: string): Promise<boolean> {
     const subject = 'Welcome to Starlight - Account Verified';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -144,44 +162,26 @@ export class EmailService {
 
   async sendTemporaryPasswordEmail(
     to: string,
-    password: string,
+    // password: string,
     fullname: string,
   ): Promise<boolean> {
-    const subject = 'Your Secure Access - Starlight App';
-    const loginUrl = `${this.configService.get('APP_URL') || 'https://starlightapp.com'}/login`;
+    const subject = 'Your Starlight account is ready';
     const html = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white;">
-          <h1 style="margin: 0;">🔐 Account Created</h1>
+          <h1 style="margin: 0;">✅ Account Created</h1>
           <p style="margin: 10px 0 0; opacity: 0.9;">Starlight App</p>
         </div>
 
         <div style="padding: 30px; background: #f9f9f9;">
           <h2>Hello ${fullname},</h2>
-          <p>An account has been created for you on Starlight. For your security, a temporary password has been generated.</p>
-          
-          <div style="background: white; border-radius: 10px; padding: 25px; margin: 20px 0; border: 1px solid #e0e0e0;">
-            <p style="margin: 0 0 10px; color: #666; font-size: 14px;">Your login credentials:</p>
-            <div style="background: #f4f4f4; padding: 15px; border-radius: 5px; font-family: monospace; font-size: 16px;">
-              <strong>Email:</strong> ${to}<br>
-              <strong>Password:</strong> ${password}
-            </div>
-          </div>
-
-          <p style="color: #ff4d4d; font-weight: bold; font-size: 14px;">
-            ⚠️ You will be required to change this password during your first login.
-          </p>
-
-          <div style="margin: 30px 0; text-align: center;">
-            <a href="${loginUrl}" style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
-              Access My Account
-            </a>
-          </div>
-
-          <p>If you have any questions, please contact our support team.</p>
+          <p>Your account has been created successfully.</p>
+          <p>You can now sign in to the Starlight App and complete your setup when ready.</p>
+          <p>If you did not expect this email, please contact our support team.</p>
 
           <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
-            <p>This is an automated message. Please do not reply directly to this email.</p>
+            <p>This is an automated message from Starlight App.</p>
+            <p>Need help? Contact: support@starlightapp.com</p>
           </div>
         </div>
       </div>
@@ -191,6 +191,17 @@ export class EmailService {
   }
 
   async sendEmail(
+    to: string,
+    subject: string,
+    htmlBody: string,
+  ): Promise<boolean> {
+    if (this.provider === 'brevo') {
+      return this.sendViaBrevo(to, subject, htmlBody);
+    }
+    return this.sendViaMailjet(to, subject, htmlBody);
+  }
+
+  private async sendViaMailjet(
     to: string,
     subject: string,
     htmlBody: string,
@@ -225,7 +236,61 @@ export class EmailService {
 
       await this.mailjet.post('send', { version: 'v3.1' }).request(body);
 
-      this.logger.log(`✅ Email sent successfully to ${to}`);
+      this.logger.log(`✅ Email sent successfully to ${to} via Mailjet`);
+      return true;
+    } catch (error: any) {
+      this.logger.error(`❌ Failed to send email to ${to}: ${error.message}`);
+      return false;
+    }
+  }
+
+  private async sendViaBrevo(
+    to: string,
+    subject: string,
+    htmlBody: string,
+  ): Promise<boolean> {
+    if (!this.brevoApiKey) {
+      this.logger.warn(
+        `📧 [FALLBACK] No Brevo API key - Email to ${to} - Subject: ${subject}`,
+      );
+      return true;
+    }
+
+    try {
+      this.logger.debug(`Sending email to ${to} with subject "${subject}"`);
+
+      const response = await fetch(BREVO_API_URL, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          'api-key': this.brevoApiKey,
+        },
+        body: JSON.stringify({
+          sender: {
+            email:
+              this.configService.get<string>('EMAIL_FROM') ??
+              'noreply@touchit.click',
+            name:
+              this.configService.get<string>('EMAIL_FROM_NAME') ??
+              'Touch I.T - Auth',
+          },
+          to: [{ email: to }],
+          subject,
+          htmlContent: htmlBody,
+        }),
+      });
+
+      const responseBody = await response.text();
+
+      if (!response.ok) {
+        throw new Error(
+          `Brevo API responded with ${response.status}: ${responseBody}`,
+        );
+      }
+
+      this.logger.log(`✅ Email sent successfully to ${to} via Brevo`);
+      this.logger.log(`Brevo response: ${responseBody}`);
       return true;
     } catch (error: any) {
       this.logger.error(`❌ Failed to send email to ${to}: ${error.message}`);
