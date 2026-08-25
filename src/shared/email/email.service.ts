@@ -54,6 +54,7 @@ export class EmailService {
     return this.sendPasswordResetEmail(to, otp);
   }
 
+  // Ruleset
   async sendSignupOtpEmail(to: string, otp: string): Promise<boolean> {
     const subject = 'Verify Your Email - Starlight App';
     const html = `
