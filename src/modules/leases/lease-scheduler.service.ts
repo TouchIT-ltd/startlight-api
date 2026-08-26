@@ -16,22 +16,25 @@ export class LeaseSchedulerService {
   ) {}
 
   /**
-   * Runs every 2 minutes to expire leases that were created 2+ minutes ago (for testing renewal)
-   * Uses compound index on (status, createdAt) for optimal performance
+   * Runs on the 1st of every month at midnight (00:00) to expire active leases whose end date has passed.
+   * Uses compound index on (status, endDate) for optimal performance.
    */
-  @Cron('*/2 * * * *') // Every 2 minutes
+  @Cron(CronExpression.EVERY_1ST_DAY_OF_MONTH_AT_MIDNIGHT) // At 00:00 on day 1 of every month ('0 0 1 * *')
   async expireLeases() {
     try {
       this.logger.log('Starting lease expiration check...');
 
-      // Calculate 2 minutes ago for testing
-      const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+      const now = new Date();
+      const currentDateStr = now.toISOString().split('T')[0];
 
-      // Query for active leases that were created 2+ minutes ago
-      // This query will use the compound index: { status: 1, createdAt: 1 }
+      // Query for active leases that have reached or passed their end date
+      // Uses compound index: { status: 1, endDate: 1 }
       const expiredLeases = await this.mongoDb.findAll(this.collection, {
         status: 'active',
-        createdAt: { $lt: twoMinutesAgo }
+        $or: [
+          { endDate: { $lte: currentDateStr } },
+          { endDate: { $lte: now.toISOString() } },
+        ],
       });
 
       if (expiredLeases.length === 0) {
