@@ -167,6 +167,29 @@ export class LeasesController {
     return lease;
   }
 
+  @Get('my-lease/countdown')
+  @ApiTags('Tenant Portal')
+  @ApiOperation({ summary: 'Get current user payment countdown status' })
+  @ApiQuery({ name: 'userId', required: false, type: String, description: 'Optional User ID (for admins)' })
+  @ApiResponse({ status: 200, description: 'Payment countdown details' })
+  async getMyLeaseCountdown(
+    @Request() req: any,
+    @Query('userId') userId?: string,
+  ) {
+    const uid = userId || req.user?.id;
+    return this.leasesService.getLeaseCountdown(uid);
+  }
+
+  @Get(':id/countdown')
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal')
+  @ApiOperation({ summary: 'Get payment countdown for specific lease ID' })
+  @ApiParam({ name: 'id', description: 'Lease ID' })
+  @ApiResponse({ status: 200, description: 'Payment countdown details' })
+  async getLeaseCountdownById(@Param('id') id: string) {
+    return this.leasesService.getLeaseCountdown(id);
+  }
+
   @Post(':id/renew')
   @Roles(UserRole.TENANT)
   @ApiTags('Tenant Portal')
@@ -302,6 +325,25 @@ export class LeasesController {
       message: 'Lease expiration check completed',
       processed: result.processed,
       errors: result.errors,
+    };
+  }
+
+  @Post('trigger-reminders')
+  @Roles(UserRole.ADMIN)
+  @ApiTags('Admin Portal')
+  @ApiOperation({
+    summary: 'Manually trigger 7-day payment reminder email check (for testing)',
+    description: 'Manually triggers the daily 7-day payment reminder cron job to process active leases and send emails/notifications.'
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Payment reminders trigger completed',
+  })
+  async triggerRemindersManually() {
+    const result = await this.leaseSchedulerService.triggerPaymentRemindersManually();
+    return {
+      message: '7-day payment reminder check completed',
+      ...result,
     };
   }
 }

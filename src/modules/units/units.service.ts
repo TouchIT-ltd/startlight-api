@@ -282,34 +282,48 @@ export class UnitsService {
   }
 
   async getAvailableTenants(propertyId: string): Promise<any> {
-    // Find all active leases on this property
-    const leases = await this.mongoDb.findAll('leases', {
-      propertyId,
-      status: 'active',
-    });
+    // 1. Find all leases on this property
+    const leases = await this.mongoDb.findAll('leases', { propertyId });
 
-    if (!leases || leases.length === 0) {
-      return { data: [], total: 0 };
+    // 2. Find all units on this property
+    const units = await this.mongoDb.findAll('units', { propertyId });
+
+    // 3. Fetch all tenant users
+    const allTenantUsers = await this.mongoDb.findAll('users', { role: 'tenant' });
+
+    // Extract tenant IDs from active leases and assigned units
+    const activeLeaseTenantIds = new Set(
+      leases
+        .filter((l: any) => l.status === 'active')
+        .map((l: any) => String(l.userId || l.tenantId))
+        .filter(Boolean)
+    );
+
+    const leasesByTenantId = new Map<string, any>();
+    for (const lease of leases) {
+      const tid = String(lease.userId || lease.tenantId);
+      if (!leasesByTenantId.has(tid)) {
+        leasesByTenantId.set(tid, lease);
+      }
     }
 
-    // Extract unique tenant IDs
-    const tenantIds = Array.from(new Set(leases.map((l: any) => l.userId || l.tenantId).filter(Boolean)));
+    // Map result for all available tenant users
+    const result = allTenantUsers.map((tenant: any) => {
+      const tid = String(tenant.id);
+      const lease = leasesByTenantId.get(tid);
+      const fullname = tenant?.fullName || tenant?.fullname || '';
+      const phone = tenant?.phoneNumber || tenant?.phone || '';
 
-    // Fetch tenant details
-    const tenants = await this.mongoDb.findAll('users', { id: { $in: tenantIds } });
-    const tenantsById = new Map(tenants.map((t: any) => [t.id, t]));
-
-    // Map leases to tenant info
-    const result = leases.map((lease: any) => {
-      const tenant = tenantsById.get(String(lease.userId || lease.tenantId));
       return {
-        id: tenant?.id || lease.userId || lease.tenantId,
-        fullName: tenant?.fullName || tenant?.fullname || '',
-        email: tenant?.email,
-        phone: tenant?.phoneNumber || tenant?.phone,
-        leaseStart: lease.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
-        leaseEnd: lease.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
-        leaseStatus: lease.status,
+        id: tenant.id,
+        fullName: fullname,
+        fullname: fullname,
+        email: tenant.email,
+        phone,
+        phoneNumber: phone,
+        leaseStart: lease?.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
+        leaseEnd: lease?.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
+        leaseStatus: lease?.status || 'available',
       };
     });
 

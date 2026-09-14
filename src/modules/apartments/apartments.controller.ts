@@ -28,6 +28,7 @@ import {
   ApiBody,
   ApiOkResponse,
   ApiParam,
+  ApiQuery,
   ApiBearerAuth,
 } from '@nestjs/swagger';
 
@@ -94,15 +95,32 @@ export class ApartmentsController {
   }
 
   @Get()
-  @ApiOperation({ summary: 'Get a paginated list of apartments' })
+  @ApiOperation({ summary: 'Get a paginated list of apartments with filtering' })
+  @ApiQuery({ name: 'ownerId', required: false, description: 'Filter by owner ID' })
+  @ApiQuery({ name: 'ownerEmail', required: false, description: 'Filter by owner email' })
+  @ApiQuery({ name: 'managerId', required: false, description: 'Filter by manager ID' })
+  @ApiQuery({ name: 'managerEmail', required: false, description: 'Filter by manager email' })
+  @ApiQuery({ name: 'city', required: false, description: 'Filter by city' })
+  @ApiQuery({ name: 'location', required: false, description: 'Filter by location' })
+  @ApiQuery({ name: 'page', required: false, description: 'Page number', example: '1' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: '10' })
   @ApiOkResponse({
     description: 'List of apartments',
     type: PaginatedApartmentsDto,
   })
-  async findAll(@Query('page') page = '1', @Query('limit') limit = '10') {
+  async findAll(
+    @Query('ownerId') ownerId?: string,
+    @Query('ownerEmail') ownerEmail?: string,
+    @Query('managerId') managerId?: string,
+    @Query('managerEmail') managerEmail?: string,
+    @Query('city') city?: string,
+    @Query('location') location?: string,
+    @Query('page') page = '1',
+    @Query('limit') limit = '10',
+  ) {
     const p = parseInt(page, 10) || 1;
     const l = parseInt(limit, 10) || 10;
-    return this.apartmentsService.findAll(p, l);
+    return this.apartmentsService.findAll(ownerId, managerId, p, l, ownerEmail, managerEmail, city, location);
   }
 
   @Get(':id')
