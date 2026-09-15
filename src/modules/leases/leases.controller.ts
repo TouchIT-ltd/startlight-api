@@ -170,7 +170,7 @@ export class LeasesController {
 
   @Get('countdown')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
-  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal')
+  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal', 'Leases')
   @ApiOperation({ summary: 'Get current user payment countdown status' })
   @ApiQuery({ name: 'userId', required: false, type: String, description: 'Optional User ID (for admins)' })
   @ApiResponse({ status: 200, description: 'Payment countdown details', type: LeaseCountdownResponseDto })
@@ -184,7 +184,7 @@ export class LeasesController {
 
   @Get('my-lease/countdown')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
-  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal')
+  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal', 'Leases')
   @ApiOperation({ summary: 'Get current user payment countdown status' })
   @ApiQuery({ name: 'userId', required: false, type: String, description: 'Optional User ID (for admins)' })
   @ApiResponse({ status: 200, description: 'Payment countdown details', type: LeaseCountdownResponseDto })
@@ -198,7 +198,7 @@ export class LeasesController {
 
   @Get(':id/countdown')
   @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
-  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal')
+  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal', 'Leases')
   @ApiOperation({ summary: 'Get payment countdown for specific lease ID' })
   @ApiParam({ name: 'id', description: 'Lease ID' })
   @ApiResponse({ status: 200, description: 'Payment countdown details', type: LeaseCountdownResponseDto })
