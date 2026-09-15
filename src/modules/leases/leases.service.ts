@@ -515,4 +515,70 @@ export class LeasesService {
       throw error;
     }
   }
+
+  async getLeaseCountdown(leaseIdOrUserId: string): Promise<any> {
+    try {
+      this.logger.log(`getLeaseCountdown for ${leaseIdOrUserId}`);
+
+      // Try finding lease by direct lease ID first
+      let lease = await this.mongoDb.findOne(this.collection, leaseIdOrUserId).catch(() => null);
+
+      // If not found by lease ID, find active lease by userId / tenantId
+      if (!lease) {
+        lease = await this.mongoDb.findOneBy(this.collection, {
+          $or: [{ userId: leaseIdOrUserId }, { tenantId: leaseIdOrUserId }],
+          status: 'active',
+        });
+      }
+
+      // Fallback: search any lease for user if no active lease found
+      if (!lease) {
+        lease = await this.mongoDb.findOneBy(this.collection, {
+          $or: [{ userId: leaseIdOrUserId }, { tenantId: leaseIdOrUserId }],
+        });
+      }
+
+      if (!lease) {
+        throw new NotFoundException(`No lease found for ID or User ${leaseIdOrUserId}`);
+      }
+
+      const dueDateStr = lease.nextPaymentDueDate || lease.endDate;
+      if (!dueDateStr) {
+        throw new NotFoundException('Lease has no valid end or due date');
+      }
+
+      const now = new Date();
+      const dueDate = new Date(dueDateStr);
+
+      const diffMs = dueDate.getTime() - now.getTime();
+      const isOverdue = diffMs < 0;
+
+      const daysRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60 * 24)));
+      const hoursRemaining = Math.max(0, Math.ceil(diffMs / (1000 * 60 * 60)));
+
+      let formattedCountdown = `${daysRemaining} day(s) remaining`;
+      if (daysRemaining === 0) {
+        formattedCountdown = isOverdue ? 'Overdue' : 'Due Today';
+      } else if (daysRemaining === 1) {
+        formattedCountdown = '1 day remaining (Due Tomorrow)';
+      }
+
+      return {
+        leaseId: lease.id,
+        userId: lease.userId || lease.tenantId,
+        unitNumber: lease.unitNumber,
+        propertyId: lease.propertyId,
+        rentAmount: lease.rentAmount,
+        dueDate: dueDateStr.split('T')[0],
+        daysRemaining,
+        hoursRemaining,
+        isOverdue,
+        formattedCountdown,
+        leaseStatus: lease.status,
+      };
+    } catch (error: any) {
+      this.logger.error(`Error in getLeaseCountdown: ${error.message}`);
+      throw error;
+    }
+  }
 }

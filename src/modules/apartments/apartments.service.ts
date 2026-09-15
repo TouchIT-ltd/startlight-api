@@ -66,9 +66,19 @@ export class ApartmentsService {
   async create(data: any, files?: Array<Express.Multer.File>): Promise<any> {
     console.log('Creating apartment with data:', data);
 
+    if (data.ownerEmail) {
+      const owner = await this.usersService.findByEmail(data.ownerEmail);
+      if (owner) data.ownerId = owner.id;
+    }
+
+    if (data.managerEmail) {
+      const manager = await this.usersService.findByEmail(data.managerEmail);
+      if (manager) data.managerId = manager.id;
+    }
+
     // Validate owner
     if (data.ownerId) {
-      const owner = await this.usersService.findOne(data.ownerId);
+      const owner = await this.usersService.findOne(data.ownerId).catch(() => null);
       if (!owner) {
         throw new NotFoundException(`Owner with ID ${data.ownerId} not found`);
       }
@@ -85,7 +95,6 @@ export class ApartmentsService {
     }
 
     if (files && files.length > 0) {
-      // Validate all files
       const allowedMimes = [
         'image/jpeg',
         'image/jpg',
@@ -114,7 +123,6 @@ export class ApartmentsService {
       const uploadedUrls = await Promise.all(uploadPromises);
       const validUrls = uploadedUrls.filter((url): url is string => !!url);
 
-      // Append new uploads to the images list
       images = [...images, ...validUrls];
     }
 
@@ -122,12 +130,47 @@ export class ApartmentsService {
       ...data,
       images,
     });
+
+    if (created.ownerId) {
+      const owner = await this.usersService.findOne(created.ownerId).catch(() => null);
+      if (owner) created.ownerEmail = owner.email;
+    }
+    if (created.managerId) {
+      const manager = await this.usersService.findOne(created.managerId).catch(() => null);
+      if (manager) created.managerEmail = manager.email;
+    }
+
     return created;
   }
 
-  async findAll(page = 1, limit = 10): Promise<any> {
+  async findAll(
+    ownerId?: string,
+    managerId?: string,
+    page = 1,
+    limit = 10,
+    ownerEmail?: string,
+    managerEmail?: string,
+    city?: string,
+    location?: string,
+  ): Promise<any> {
     const skip = (page - 1) * limit;
-    const filter = { isDeleted: { $ne: true } };
+    const filter: any = { isDeleted: { $ne: true } };
+
+    if (ownerEmail && !ownerId) {
+      const owner = await this.usersService.findByEmail(ownerEmail);
+      if (owner) ownerId = owner.id;
+    }
+
+    if (managerEmail && !managerId) {
+      const manager = await this.usersService.findByEmail(managerEmail);
+      if (manager) managerId = manager.id;
+    }
+
+    if (ownerId) filter.ownerId = ownerId;
+    if (managerId) filter.managerId = managerId;
+    if (city) filter.city = new RegExp(city, 'i');
+    if (location) filter.location = new RegExp(location, 'i');
+
     const [items, total] = await Promise.all([
       this.mongoDb.findAll(
         this.collection,
@@ -137,10 +180,23 @@ export class ApartmentsService {
       this.mongoDb.count(this.collection, filter),
     ]);
 
+    const enriched = await Promise.all(items.map(async (it: any) => {
+      if (it.ownerId && !it.ownerEmail) {
+        const owner = await this.usersService.findOne(it.ownerId).catch(() => null);
+        if (owner) it.ownerEmail = owner.email;
+      }
+      if (it.managerId && !it.managerEmail) {
+        const manager = await this.usersService.findOne(it.managerId).catch(() => null);
+        if (manager) it.managerEmail = manager.email;
+      }
+      return it;
+    }));
+
     return {
-      data: items,
+      data: enriched,
       total,
       page,
+      limit,
       totalPages: Math.ceil(total / limit),
     };
   }
@@ -149,6 +205,14 @@ export class ApartmentsService {
     const item = await this.mongoDb.findOne(this.collection, id);
     if (!item || item.isDeleted) {
       throw new NotFoundException(`Apartment with ID ${id} not found`);
+    }
+    if (item.ownerId && !item.ownerEmail) {
+      const owner = await this.usersService.findOne(item.ownerId).catch(() => null);
+      if (owner) item.ownerEmail = owner.email;
+    }
+    if (item.managerId && !item.managerEmail) {
+      const manager = await this.usersService.findOne(item.managerId).catch(() => null);
+      if (manager) item.managerEmail = manager.email;
     }
     return item;
   }

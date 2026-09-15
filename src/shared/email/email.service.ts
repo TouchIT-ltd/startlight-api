@@ -191,6 +191,73 @@ export class EmailService {
     return this.sendEmail(to, subject, html);
   }
 
+  async sendPaymentReminderEmail(
+    to: string,
+    fullname: string,
+    unitNumber: string,
+    dueDate: string,
+    daysRemaining: number,
+    amount: number,
+  ): Promise<boolean> {
+    const formattedAmount = amount ? `₦${amount.toLocaleString()}` : 'your rent';
+    const countdownText = daysRemaining === 0
+      ? 'DUE TODAY'
+      : daysRemaining === 1
+      ? 'Due Tomorrow (1 Day Remaining)'
+      : `${daysRemaining} Days Remaining`;
+
+    const subject = `Payment Reminder: Rent Payment ${countdownText} - Unit ${unitNumber}`;
+    const html = `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; color: white;">
+          <h1 style="margin: 0;">⏰ Payment Reminder</h1>
+          <p style="margin: 10px 0 0; opacity: 0.9;">Starlight App</p>
+        </div>
+
+        <div style="padding: 30px; background: #f9f9f9;">
+          <h2>Hello ${fullname},</h2>
+          <p>This is an automated reminder regarding your upcoming rent payment for <strong>Unit ${unitNumber}</strong>.</p>
+
+          <div style="background: white; border-radius: 10px; padding: 20px; margin: 20px 0; border: 2px dashed #667eea;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">Unit Number:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #333; font-size: 14px; text-align: right;">${unitNumber}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">Amount Due:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #667eea; font-size: 20px; text-align: right;">${formattedAmount}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">Due Date:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #333; font-size: 14px; text-align: right;">${dueDate}</td>
+              </tr>
+              <tr>
+                <td style="padding: 8px 0; color: #666; font-size: 14px;">Status:</td>
+                <td style="padding: 8px 0; font-weight: bold; color: #d9534f; font-size: 14px; text-align: right;">${countdownText}</td>
+              </tr>
+            </table>
+          </div>
+
+          <div style="margin: 30px 0; text-align: center;">
+            <a href="${this.configService.get('APP_URL') || 'https://starlightapp.com'}/login" style="background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; font-weight: bold; display: inline-block;">
+              Pay Rent Now
+            </a>
+          </div>
+
+          <p>Please ensure your payment is completed on or before the due date to keep your lease active.</p>
+
+          <div style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; font-size: 12px; color: #999;">
+            <p>This is an automated message from Starlight App.</p>
+            <p>Need help? Contact: support@starlightapp.com</p>
+          </div>
+        </div>
+      </div>
+    `;
+
+    return this.sendEmail(to, subject, html);
+  }
+
   async sendEmail(
     to: string,
     subject: string,

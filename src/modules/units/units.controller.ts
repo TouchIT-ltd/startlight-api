@@ -126,6 +126,82 @@ export class UnitsController {
     return this.unitsService.findAll(propertyId, p, l, { status, tenantId });
   }
 
+  @Get('amenities/list')
+  @ApiTags('Tenant Portal', 'Manager Portal')
+  @ApiOperation({
+    summary: 'Get list of available amenities',
+    description: 'Get all available amenities that can be assigned to units'
+  })
+  @ApiOkResponse({
+    description: 'List of available amenities',
+    schema: {
+      type: 'object',
+      properties: {
+        amenities: {
+          type: 'array',
+          items: { type: 'string' },
+          example: ['Air Conditioning', 'Parking', 'Wi-Fi', 'Gym', 'Swimming Pool', 'Garden', 'Balcony']
+        }
+      }
+    }
+  })
+  async getAmenities() {
+    return {
+      amenities: [
+        'Air Conditioning',
+        'Parking',
+        'Wi-Fi',
+        'Gym',
+        'Swimming Pool',
+        'Garden',
+        'Balcony',
+        'Elevator',
+        'Security Gate',
+        'Laundry Facility',
+        'Kitchen Appliances',
+        'Furnished'
+      ]
+    };
+  }
+
+  @Get('available-tenants')
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
+  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
+  @ApiOperation({
+    summary: 'Get available tenants for a property',
+    description: 'Access: ADMIN, OWNER, MANAGER - Get list of tenants who can be assigned to units'
+  })
+  @ApiQuery({ name: 'propertyId', required: true, description: 'Property ID' })
+  @ApiOkResponse({
+    description: 'List of available tenants',
+    schema: {
+      type: 'object',
+      properties: {
+        data: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', example: 'mongo_1616161616_abcd1234' },
+              fullName: { type: 'string', example: 'Sarah Smith' },
+              fullname: { type: 'string', example: 'Sarah Smith' },
+              email: { type: 'string', example: 'sarah@email.com' },
+              phone: { type: 'string', example: '08012345678' },
+              phoneNumber: { type: 'string', example: '08012345678' },
+              leaseStart: { type: 'string', example: '2026-01-01' },
+              leaseEnd: { type: 'string', example: '2027-01-01' },
+              leaseStatus: { type: 'string', example: 'active' }
+            }
+          }
+        },
+        total: { type: 'number', example: 5 }
+      }
+    }
+  })
+  async getAvailableTenants(@Query('propertyId') propertyId: string) {
+    return this.unitsService.getAvailableTenants(propertyId);
+  }
+
   @Get(':id')
   @Public()
   @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal', 'Tenant Portal')
@@ -171,90 +247,5 @@ export class UnitsController {
   @ApiResponse({ status: 200, description: 'Unit deleted successfully' })
   async remove(@Param('id') id: string) {
     return this.unitsService.remove(id);
-  }
-
-  @Get('amenities/list')
-  @ApiTags('Tenant Portal', 'Manager Portal')
-  @ApiOperation({
-    summary: 'Get list of available amenities',
-    description: 'Get all available amenities that can be assigned to units'
-  })
-  @ApiOkResponse({
-    description: 'List of available amenities',
-    schema: {
-      type: 'object',
-      properties: {
-        amenities: {
-          type: 'array',
-          items: { type: 'string' },
-          example: ['Air Conditioning', 'Parking', 'Wi-Fi', 'Gym', 'Swimming Pool', 'Garden', 'Balcony']
-        }
-      }
-    }
-  })
-  async getAmenities() {
-    return {
-      amenities: [
-        'Air Conditioning',
-        'Parking',
-        'Wi-Fi',
-        'Gym',
-        'Swimming Pool',
-        'Garden',
-        'Balcony',
-        'Elevator',
-        'Security Gate',
-        'Laundry Facility',
-        'Kitchen Appliances',
-        'Furnished'
-      ]
-    };
-  }
-
-  @Get('available-tenants')
-  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER)
-  @ApiTags('Admin Portal', 'Owner Portal', 'Manager Portal')
-  @ApiOperation({
-    summary: 'Get available tenants for a property',
-    description: 'Access: ADMIN, OWNER, MANAGER - Get list of tenants with active leases on a property who can be assigned to units'
-  })
-  @ApiQuery({ name: 'propertyId', required: true, description: 'Property ID' })
-  @ApiOkResponse({
-    description: 'List of available tenants',
-    schema: {
-      type: 'object',
-      properties: {
-        data: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id: { type: 'string', example: 'mongo_1616161616_abcd1234' },
-              fullName: { type: 'string', example: 'Sarah Smith' },
-              email: { type: 'string', example: 'sarah@email.com' },
-              phone: { type: 'string', example: '08012345678' },
-              leaseStart: { type: 'string', example: '2026-01-01' },
-              leaseEnd: { type: 'string', example: '2027-01-01' },
-              leaseStatus: { type: 'string', example: 'active' }
-            }
-          },
-          example: [
-            {
-              id: 'mongo_1616161616_abcd1234',
-              fullName: 'Sarah Smith',
-              email: 'sarah@email.com',
-              phone: '08012345678',
-              leaseStart: '2026-01-01',
-              leaseEnd: '2027-01-01',
-              leaseStatus: 'active'
-            }
-          ]
-        },
-        total: { type: 'number', example: 5 }
-      }
-    }
-  })
-  async getAvailableTenants(@Query('propertyId') propertyId: string) {
-    return this.unitsService.getAvailableTenants(propertyId);
   }
 }

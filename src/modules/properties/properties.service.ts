@@ -169,30 +169,66 @@ export class PropertiesService {
   }
 
   async getTenants(propertyId: string) {
-    // find leases related to this property using public DB API
+    // 1. Fetch leases related to this property
     const leases = await this.mongoDb.findAll('leases', { propertyId }, { sort: { startDate: -1 } });
 
-    if (!leases || leases.length === 0) return [];
+    // 2. Fetch units related to this property
+    const units = await this.mongoDb.findAll('units', { propertyId });
 
-    const tenantIds = Array.from(new Set(
-      leases.flatMap((l: any) => [l.tenantId, l.userId]).filter(Boolean)
-    ));
-    const tenants = await this.mongoDb.findAll('users', { id: { $in: tenantIds } });
+    // 3. Collect tenant IDs from leases and units
+    const tenantIdsFromLeases = leases.flatMap((l: any) => [l.tenantId, l.userId]).filter(Boolean);
+    const tenantIdsFromUnits = units.map((u: any) => u.tenantId).filter(Boolean);
+
+    // 4. Fetch all tenant users or specified tenant IDs
+    let tenants = await this.mongoDb.findAll('users', { role: 'tenant' });
     const tenantsById = new Map(tenants.map((t: any) => [String(t.id), t]));
 
-    // map each lease to a tenant entry
-    const result = leases.map((lease: any) => {
-      const tenantId = lease.tenantId || lease.userId;
-      const tenant = tenantsById.get(String(tenantId));
+    // Map leases to lease info per tenant
+    const leasesByTenantId = new Map<string, any>();
+    for (const lease of leases) {
+      const tid = String(lease.tenantId || lease.userId);
+      if (!leasesByTenantId.has(tid)) {
+        leasesByTenantId.set(tid, lease);
+      }
+    }
+
+    // Map unit number per tenant from assigned unit
+    const unitByTenantId = new Map<string, string>();
+    for (const unit of units) {
+      if (unit.tenantId) {
+        unitByTenantId.set(String(unit.tenantId), unit.unitNumber);
+      }
+    }
+
+    // Build unique tenant list: tenants with leases, tenants with unit assignments, or onboarded tenants
+    const relevantTenantIds = new Set<string>([
+      ...tenantIdsFromLeases.map(String),
+      ...tenantIdsFromUnits.map(String),
+    ]);
+
+    // If no specific property-assigned tenants yet, return all onboarded tenant users so admin can view them
+    const targetTenants = relevantTenantIds.size > 0
+      ? tenants.filter((t: any) => relevantTenantIds.has(String(t.id)))
+      : tenants;
+
+    const result = targetTenants.map((tenant: any) => {
+      const tid = String(tenant.id);
+      const lease = leasesByTenantId.get(tid);
+      const assignedUnit = unitByTenantId.get(tid);
+      const fullname = tenant?.fullname || tenant?.fullName || '';
+      const phone = tenant?.phoneNumber || tenant?.phone || '';
+
       return {
-        id: tenant?.id || tenantId,
-        fullname: tenant?.fullname || tenant?.fullName || '',
-        email: tenant?.email || '',
-        phoneNumber: tenant?.phoneNumber || tenant?.phone || '',
-        unitNumber: lease.unitNumber || lease.unit || '',
-        leaseStart: lease.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
-        leaseEnd: lease.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
-        leaseStatus: lease.status,
+        id: tenant.id,
+        fullname,
+        fullName: fullname,
+        email: tenant.email || '',
+        phoneNumber: phone,
+        phone,
+        unitNumber: lease?.unitNumber || lease?.unit || assignedUnit || '',
+        leaseStart: lease?.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
+        leaseEnd: lease?.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
+        leaseStatus: lease?.status || (assignedUnit ? 'assigned' : 'pending'),
       };
     });
 
