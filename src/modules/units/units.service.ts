@@ -47,7 +47,32 @@ export class UnitsService {
       throw new ConflictException(`Unit number ${data.unitNumber} already exists in this property`);
     }
 
+    if (data.tenantId) {
+      data.status = 'occupied';
+    }
+
     const created = await this.mongoDb.create(this.collection, data);
+
+    if (data.tenantId) {
+      const now = new Date();
+      const startDate = now.toISOString().split('T')[0];
+      const end = new Date(now);
+      const months = data.duration && !isNaN(Number(data.duration)) ? Number(data.duration) : 12;
+      end.setMonth(end.getMonth() + months);
+      const endDate = end.toISOString().split('T')[0];
+
+      await this.mongoDb.create('leases', {
+        tenantId: data.tenantId,
+        userId: data.tenantId,
+        propertyId: data.propertyId,
+        unitNumber: data.unitNumber,
+        startDate,
+        endDate,
+        rentAmount: data.price || 0,
+        status: 'active',
+        createdAt: new Date(),
+      });
+    }
 
     // Fetch property to get ownerId for audit log
     const property = await this.mongoDb.findOne('properties', data.propertyId);
@@ -224,12 +249,50 @@ export class UnitsService {
       }
     }
 
+    if (data.tenantId) {
+      data.status = 'occupied';
+    }
+
     console.log('Updating unit with data:', data);
 
     const updated = await this.mongoDb.update(this.collection, id, data);
 
     if (!updated) {
       throw new NotFoundException(`Unit with ID ${id} not found`);
+    }
+
+    if (data.tenantId) {
+      const existingLease = await this.mongoDb.findOneBy('leases', {
+        propertyId: existing.propertyId,
+        unitNumber: data.unitNumber || existing.unitNumber,
+        $or: [{ tenantId: data.tenantId }, { userId: data.tenantId }],
+      });
+
+      if (!existingLease) {
+        const now = new Date();
+        const startDate = now.toISOString().split('T')[0];
+        const end = new Date(now);
+        const months = (data.duration || existing.duration) ? Number(data.duration || existing.duration) : 12;
+        end.setMonth(end.getMonth() + months);
+        const endDate = end.toISOString().split('T')[0];
+
+        await this.mongoDb.create('leases', {
+          tenantId: data.tenantId,
+          userId: data.tenantId,
+          propertyId: existing.propertyId,
+          unitNumber: data.unitNumber || existing.unitNumber,
+          startDate,
+          endDate,
+          rentAmount: data.price || existing.price || 0,
+          status: 'active',
+          createdAt: new Date(),
+        });
+      } else {
+        await this.mongoDb.update('leases', existingLease.id, {
+          status: 'active',
+          rentAmount: data.price || existing.price || existingLease.rentAmount,
+        });
+      }
     }
 
     // Audit Log

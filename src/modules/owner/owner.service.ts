@@ -8,8 +8,19 @@ export class OwnerService {
   ) {}
 
   async getDashboard(ownerId: string): Promise<any> {
+    // Get owner details to match by ownerId or ownerEmail
+    let owner = await this.mongoDb.findOne('users', ownerId).catch(() => null);
+    if (!owner && ownerId.includes('@')) {
+      owner = await this.mongoDb.findOneBy('users', { email: ownerId }).catch(() => null);
+    }
+    const ownerEmail = owner?.email || (ownerId.includes('@') ? ownerId : undefined);
+    const resolvedOwnerId = owner?.id || ownerId;
+    const propertyQuery: any = ownerEmail
+      ? { $or: [{ ownerId: resolvedOwnerId }, { ownerEmail }] }
+      : { ownerId: resolvedOwnerId };
+
     // Get all properties owned by this owner
-    const properties = await this.mongoDb.findAll('properties', { ownerId });
+    const properties = await this.mongoDb.findAll('properties', propertyQuery);
 
     // Get all units in these properties
     const propertyIds = properties.map(p => p.id);

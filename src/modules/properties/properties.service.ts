@@ -101,24 +101,53 @@ export class PropertiesService {
     const skip = (page - 1) * limit;
     const filter: any = {};
 
-    // convert owner email to id if necessary
-    if (ownerEmail && !ownerId) {
-      const owner = await this.usersService.findByEmail(ownerEmail);
-      if (owner) {
-        ownerId = owner.id;
-      }
+    let resolvedOwnerId = ownerId;
+    let resolvedOwnerEmail = ownerEmail;
+    if (ownerId && ownerId.includes('@') && !resolvedOwnerEmail) {
+      resolvedOwnerEmail = ownerId;
+    }
+    if (resolvedOwnerId && !resolvedOwnerEmail) {
+      const owner = await this.usersService.findOne(resolvedOwnerId).catch(() => null);
+      if (owner) resolvedOwnerEmail = owner.email;
+    } else if (resolvedOwnerEmail && !resolvedOwnerId) {
+      const owner = await this.usersService.findByEmail(resolvedOwnerEmail).catch(() => null);
+      if (owner) resolvedOwnerId = owner.id;
     }
 
-    // convert manager email to id
-    if (managerEmail && !managerId) {
-      const manager = await this.usersService.findByEmail(managerEmail);
-      if (manager) {
-        managerId = manager.id;
-      }
+    if (resolvedOwnerId || resolvedOwnerEmail) {
+      const ownerConditions: any[] = [];
+      if (resolvedOwnerId) ownerConditions.push({ ownerId: resolvedOwnerId });
+      if (resolvedOwnerEmail) ownerConditions.push({ ownerEmail: resolvedOwnerEmail });
+      filter.$or = ownerConditions;
     }
 
-    if (ownerId) filter.ownerId = ownerId;
-    if (managerId) filter.managerId = managerId;
+    let resolvedManagerId = managerId;
+    let resolvedManagerEmail = managerEmail;
+    if (managerId && managerId.includes('@') && !resolvedManagerEmail) {
+      resolvedManagerEmail = managerId;
+    }
+    if (resolvedManagerId && !resolvedManagerEmail) {
+      const mgr = await this.usersService.findOne(resolvedManagerId).catch(() => null);
+      if (mgr) resolvedManagerEmail = mgr.email;
+    } else if (resolvedManagerEmail && !resolvedManagerId) {
+      const mgr = await this.usersService.findByEmail(resolvedManagerEmail).catch(() => null);
+      if (mgr) resolvedManagerId = mgr.id;
+    }
+
+    if (resolvedManagerId || resolvedManagerEmail) {
+      const mgrConditions: any[] = [];
+      if (resolvedManagerId) mgrConditions.push({ managerId: resolvedManagerId });
+      if (resolvedManagerEmail) mgrConditions.push({ managerEmail: resolvedManagerEmail });
+      if (filter.$or) {
+        filter.$and = [
+          { $or: filter.$or },
+          { $or: mgrConditions },
+        ];
+        delete filter.$or;
+      } else {
+        filter.$or = mgrConditions;
+      }
+    }
 
     const [items, total] = await Promise.all([
       this.mongoDb.findAll(
