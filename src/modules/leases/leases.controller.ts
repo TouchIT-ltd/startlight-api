@@ -22,6 +22,7 @@ import { LeaseSchedulerService } from './lease-scheduler.service';
 import { CreateLeaseDto } from './dto/create-lease.dto';
 import { LeaseResponseDto } from './dto/lease-response.dto';
 import { PaginatedLeasesDto } from './dto/paginated-leases.dto';
+import { LeaseCountdownResponseDto } from './dto/lease-countdown-response.dto';
 import {
   ApiTags,
   ApiOperation,
@@ -167,11 +168,26 @@ export class LeasesController {
     return lease;
   }
 
-  @Get('my-lease/countdown')
-  @ApiTags('Tenant Portal')
+  @Get('countdown')
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal')
   @ApiOperation({ summary: 'Get current user payment countdown status' })
   @ApiQuery({ name: 'userId', required: false, type: String, description: 'Optional User ID (for admins)' })
-  @ApiResponse({ status: 200, description: 'Payment countdown details' })
+  @ApiResponse({ status: 200, description: 'Payment countdown details', type: LeaseCountdownResponseDto })
+  async getCountdown(
+    @Request() req: any,
+    @Query('userId') userId?: string,
+  ) {
+    const uid = userId || req.user?.id;
+    return this.leasesService.getLeaseCountdown(uid);
+  }
+
+  @Get('my-lease/countdown')
+  @Roles(UserRole.ADMIN, UserRole.OWNER, UserRole.MANAGER, UserRole.TENANT)
+  @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal')
+  @ApiOperation({ summary: 'Get current user payment countdown status' })
+  @ApiQuery({ name: 'userId', required: false, type: String, description: 'Optional User ID (for admins)' })
+  @ApiResponse({ status: 200, description: 'Payment countdown details', type: LeaseCountdownResponseDto })
   async getMyLeaseCountdown(
     @Request() req: any,
     @Query('userId') userId?: string,
@@ -185,7 +201,7 @@ export class LeasesController {
   @ApiTags('Tenant Portal', 'Admin Portal', 'Owner Portal', 'Manager Portal')
   @ApiOperation({ summary: 'Get payment countdown for specific lease ID' })
   @ApiParam({ name: 'id', description: 'Lease ID' })
-  @ApiResponse({ status: 200, description: 'Payment countdown details' })
+  @ApiResponse({ status: 200, description: 'Payment countdown details', type: LeaseCountdownResponseDto })
   async getLeaseCountdownById(@Param('id') id: string) {
     return this.leasesService.getLeaseCountdown(id);
   }
