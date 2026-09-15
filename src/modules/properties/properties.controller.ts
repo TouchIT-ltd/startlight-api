@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFiles,
+  Request,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -124,6 +125,7 @@ export class PropertiesController {
   @ApiQuery({ name: 'limit', required: false, description: 'Items per page', example: '10' })
   @ApiOkResponse({ description: 'List of properties', type: PaginatedPropertiesDto })
   async findAll(
+    @Request() req: any,
     @Query('ownerId') ownerId?: string,
     @Query('ownerEmail') ownerEmail?: string,
     @Query('managerId') managerId?: string,
@@ -131,6 +133,15 @@ export class PropertiesController {
     @Query('page') page = '1',
     @Query('limit') limit = '10',
   ) {
+    const user = req?.user;
+    if (user?.role === 'owner' && !ownerId && !ownerEmail) {
+      ownerId = user.id;
+      ownerEmail = user.email;
+    } else if (user?.role === 'manager' && !managerId && !managerEmail) {
+      managerId = user.id;
+      managerEmail = user.email;
+    }
+
     const p = parseInt(page, 10) || 1;
     const l = parseInt(limit, 10) || 10;
     return this.propertiesService.findAll(ownerId, managerId, p, l, ownerEmail, managerEmail);
