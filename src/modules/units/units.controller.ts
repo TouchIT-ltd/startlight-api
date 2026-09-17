@@ -171,7 +171,8 @@ export class UnitsController {
     summary: 'Get available tenants for a property',
     description: 'Access: ADMIN, OWNER, MANAGER - Get list of tenants who can be assigned to units'
   })
-  @ApiQuery({ name: 'propertyId', required: true, description: 'Property ID' })
+  @ApiQuery({ name: 'propertyId', required: false, description: 'Property ID (optional)' })
+  @ApiQuery({ name: 'search', required: false, description: 'Search by tenant name or email (optional)' })
   @ApiOkResponse({
     description: 'List of available tenants',
     schema: {
@@ -190,7 +191,7 @@ export class UnitsController {
               phoneNumber: { type: 'string', example: '08012345678' },
               leaseStart: { type: 'string', example: '2026-01-01' },
               leaseEnd: { type: 'string', example: '2027-01-01' },
-              leaseStatus: { type: 'string', example: 'active' }
+              leaseStatus: { type: 'string', example: 'available' }
             }
           }
         },
@@ -198,8 +199,11 @@ export class UnitsController {
       }
     }
   })
-  async getAvailableTenants(@Query('propertyId') propertyId: string) {
-    return this.unitsService.getAvailableTenants(propertyId);
+  async getAvailableTenants(
+    @Query('propertyId') propertyId?: string,
+    @Query('search') search?: string,
+  ) {
+    return this.unitsService.getAvailableTenants(propertyId, search);
   }
 
   @Get(':id')

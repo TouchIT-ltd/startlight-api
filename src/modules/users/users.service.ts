@@ -215,7 +215,7 @@ export class UsersService {
   async findAll(
     page = 1,
     limit = 10,
-    filters: { role?: string; isActive?: boolean } = {},
+    filters: { role?: string; isActive?: boolean; propertyId?: string; search?: string } = {},
   ): Promise<any> {
     const skip = (page - 1) * limit;
 
@@ -226,6 +226,36 @@ export class UsersService {
     }
     if (filters.isActive !== undefined) {
       query.isActive = filters.isActive;
+    }
+
+    if (filters.propertyId) {
+      const [propUnits, propLeases] = await Promise.all([
+        this.mongoDb.findAll('units', { propertyId: filters.propertyId }),
+        this.mongoDb.findAll('leases', { propertyId: filters.propertyId }),
+      ]);
+      const tenantIds = new Set<string>([
+        ...propUnits.map((u: any) => u.tenantId).filter(Boolean),
+        ...propLeases.flatMap((l: any) => [l.tenantId, l.userId]).filter(Boolean),
+      ]);
+      if (tenantIds.size === 0) {
+        return { data: [], total: 0, page, totalPages: 0 };
+      }
+      query.id = { $in: Array.from(tenantIds) };
+    }
+
+    if (filters.search && filters.search.trim()) {
+      const regex = { $regex: filters.search.trim(), $options: 'i' };
+      const searchOr = [
+        { fullname: regex },
+        { fullName: regex },
+        { email: regex },
+      ];
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: searchOr }];
+        delete query.$or;
+      } else {
+        query.$or = searchOr;
+      }
     }
 
     const [users, total] = await Promise.all([

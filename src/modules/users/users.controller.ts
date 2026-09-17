@@ -186,14 +186,18 @@ export class UsersController {
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
   @ApiQuery({ name: 'role', required: false, enum: UserRole, description: 'Filter by user role' })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean, description: 'Filter by active status' })
+  @ApiQuery({ name: 'propertyId', required: false, type: String, description: 'Filter tenants by property ID' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search users by name or email' })
   @ApiResponse({ status: 200, description: 'List of users' })
   async findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
     @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
     @Query('role') role?: UserRole,
     @Query('isActive') isActive?: boolean,
+    @Query('propertyId') propertyId?: string,
+    @Query('search') search?: string,
   ) {
-    return this.usersService.findAll(page, limit, { role, isActive });
+    return this.usersService.findAll(page, limit, { role, isActive, propertyId, search });
   }
 
   @Get(':id')
