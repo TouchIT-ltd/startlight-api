@@ -188,15 +188,30 @@ export class LeasesService {
         throw new NotFoundException('User id is required to find lease');
       }
 
-      // Support leases that reference the tenant as either `userId` or `tenantId`.
-      const item = await this.mongoDb.findOneBy(this.collection, {
-        $or: [{ userId }, { tenantId: userId }],
-        // status: 'active',
+      // Fetch all leases referencing tenant as either userId or tenantId, sorted newest first
+      const items = await this.mongoDb.findAll(
+        this.collection,
+        { $or: [{ userId }, { tenantId: userId }] },
+        { sort: { createdAt: -1 } },
+      );
+
+      if (!items || items.length === 0) {
+        this.logger.log(`No lease found for user ${userId}`);
+        return null;
+      }
+
+      // Prioritize lease with future end date or active status
+      const now = new Date();
+      let item = items.find((l: any) => {
+        if (l.endDate) {
+          const end = new Date(l.endDate);
+          return !isNaN(end.getTime()) && end.getTime() > now.getTime();
+        }
+        return l.status === 'active';
       });
 
       if (!item) {
-        this.logger.log(`No active lease found for user ${userId}`);
-        return null;
+        item = items[0];
       }
 
       return this._populateLeaseDetails(item);
@@ -218,6 +233,35 @@ export class LeasesService {
 
   private async _populateLeaseDetails(lease: any): Promise<any> {
     if (!lease) return lease;
+
+    // Validate and auto-correct lease status based on endDate
+    if (lease.endDate) {
+      const now = new Date();
+      const end = new Date(lease.endDate);
+      if (!isNaN(end.getTime())) {
+        if (end.getTime() > now.getTime()) {
+          // Future end date - lease MUST be active
+          if (lease.status === 'expired') {
+            lease.status = 'active';
+            delete lease.expiredAt;
+            this.mongoDb
+              .update(this.collection, lease.id, {
+                status: 'active',
+                $unset: { expiredAt: '' },
+                updatedAt: new Date(),
+              })
+              .catch((err) =>
+                this.logger.warn(`Failed to auto-heal lease ${lease.id}: ${err.message}`),
+              );
+          }
+        } else {
+          // Past end date - lease is expired
+          if (lease.status === 'active') {
+            lease.status = 'expired';
+          }
+        }
+      }
+    }
 
     // Populate Unit Details
     if (lease.unitNumber && lease.propertyId) {
@@ -574,7 +618,7 @@ export class LeasesService {
         hoursRemaining,
         isOverdue,
         formattedCountdown,
-        leaseStatus: lease.status,
+        leaseStatus: !isOverdue ? 'active' : (lease.status || 'expired'),
       };
     } catch (error: any) {
       this.logger.error(`Error in getLeaseCountdown: ${error.message}`);

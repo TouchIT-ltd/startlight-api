@@ -161,6 +161,7 @@ export class UnitsService {
         const { password, ...tenantSafe } = tenant;
         const leaseKey = `${u.tenantId}_${u.propertyId}_${u.unitNumber}`;
         const lease = leasesByKey[leaseKey];
+        const isLeaseActive = lease?.endDate ? new Date(lease.endDate) > new Date() : (lease?.status === 'active' || !lease);
         u.currentTenant = {
           id: tenantSafe.id,
           fullName: tenantSafe.fullname || tenantSafe.fullName || '',
@@ -168,7 +169,7 @@ export class UnitsService {
           phone: tenantSafe.phoneNumber || tenantSafe.phone || undefined,
           leaseStart: lease ? lease.startDate : undefined,
           leaseEnd: lease ? lease.endDate : undefined,
-          leaseStatus: lease ? lease.status : undefined,
+          leaseStatus: isLeaseActive ? 'active' : (lease ? lease.status : 'assigned'),
         };
       } else {
         u.currentTenant = null;
@@ -203,13 +204,14 @@ export class UnitsService {
       const tenant = await this.mongoDb.findOne('users', item.tenantId);
       if (tenant) {
         const { password, ...tenantSafe } = tenant;
-        // Try to find active lease for this tenant on this unit
+        // Try to find lease for this tenant on this unit
         const lease = await this.mongoDb.findOneBy('leases', {
-          userId: item.tenantId,
+          $or: [{ userId: item.tenantId }, { tenantId: item.tenantId }],
           propertyId: item.propertyId,
           unitNumber: item.unitNumber,
-          status: 'active',
         });
+
+        const isLeaseActive = lease?.endDate ? new Date(lease.endDate) > new Date() : (lease?.status === 'active' || !lease);
 
         item.currentTenant = {
           id: tenantSafe.id,
@@ -218,7 +220,7 @@ export class UnitsService {
           phone: tenantSafe.phoneNumber || tenantSafe.phone || undefined,
           leaseStart: lease ? lease.startDate : undefined,
           leaseEnd: lease ? lease.endDate : undefined,
-          leaseStatus: lease ? lease.status : undefined,
+          leaseStatus: isLeaseActive ? 'active' : (lease ? lease.status : 'assigned'),
         };
       } else {
         item.currentTenant = null;
@@ -344,49 +346,65 @@ export class UnitsService {
     return { message: 'Unit deleted successfully' };
   }
 
-  async getAvailableTenants(propertyId: string): Promise<any> {
-    // 1. Find all leases on this property
-    const leases = await this.mongoDb.findAll('leases', { propertyId });
+  async getAvailableTenants(propertyId?: string, search?: string): Promise<any> {
+    const now = new Date();
 
-    // 2. Find all units on this property
-    const units = await this.mongoDb.findAll('units', { propertyId });
+    // Find all active leases, assigned units, and all tenant users
+    const [allActiveLeases, allAssignedUnits, allTenantUsers] = await Promise.all([
+      this.mongoDb.findAll('leases', { status: 'active' }),
+      this.mongoDb.findAll('units', { tenantId: { $ne: null } }),
+      this.mongoDb.findAll('users', { role: 'tenant' }),
+    ]);
 
-    // 3. Fetch all tenant users
-    const allTenantUsers = await this.mongoDb.findAll('users', { role: 'tenant' });
+    // Tenants already assigned to a unit or truly active lease (endDate in future)
+    const assignedTenantIds = new Set<string>();
 
-    // Extract tenant IDs from active leases and assigned units
-    const activeLeaseTenantIds = new Set(
-      leases
-        .filter((l: any) => l.status === 'active')
-        .map((l: any) => String(l.userId || l.tenantId))
-        .filter(Boolean)
-    );
+    for (const lease of allActiveLeases) {
+      // If lease endDate has passed, don't block tenant
+      if (lease.endDate) {
+        const end = new Date(lease.endDate);
+        if (!isNaN(end.getTime()) && end.getTime() <= now.getTime()) {
+          continue;
+        }
+      }
+      if (lease.userId) assignedTenantIds.add(String(lease.userId));
+      if (lease.tenantId) assignedTenantIds.add(String(lease.tenantId));
+    }
 
-    const leasesByTenantId = new Map<string, any>();
-    for (const lease of leases) {
-      const tid = String(lease.userId || lease.tenantId);
-      if (!leasesByTenantId.has(tid)) {
-        leasesByTenantId.set(tid, lease);
+    for (const unit of allAssignedUnits) {
+      if (unit.tenantId) {
+        assignedTenantIds.add(String(unit.tenantId));
       }
     }
 
-    // Map result for all available tenant users
-    const result = allTenantUsers.map((tenant: any) => {
-      const tid = String(tenant.id);
-      const lease = leasesByTenantId.get(tid);
+    // Available tenants are tenants not currently assigned
+    let availableTenants = allTenantUsers.filter(
+      (tenant: any) =>
+        !assignedTenantIds.has(String(tenant.id)) &&
+        !assignedTenantIds.has(String(tenant._id)),
+    );
+
+    if (search && search.trim()) {
+      const q = search.trim().toLowerCase();
+      availableTenants = availableTenants.filter((tenant: any) => {
+        const name = (tenant?.fullname || tenant?.fullName || '').toLowerCase();
+        const email = (tenant?.email || '').toLowerCase();
+        return name.includes(q) || email.includes(q);
+      });
+    }
+
+    const result = availableTenants.map((tenant: any) => {
       const fullname = tenant?.fullName || tenant?.fullname || '';
       const phone = tenant?.phoneNumber || tenant?.phone || '';
 
       return {
-        id: tenant.id,
+        id: tenant.id || tenant._id,
         fullName: fullname,
         fullname: fullname,
         email: tenant.email,
         phone,
         phoneNumber: phone,
-        leaseStart: lease?.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
-        leaseEnd: lease?.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
-        leaseStatus: lease?.status || 'available',
+        leaseStatus: 'available',
       };
     });
 
