@@ -198,19 +198,33 @@ export class PropertiesService {
   }
 
   async getTenants(propertyId: string) {
-    // 1. Fetch leases related to this property
-    const leases = await this.mongoDb.findAll('leases', { propertyId }, { sort: { startDate: -1 } });
+    if (!propertyId) return [];
 
-    // 2. Fetch units related to this property
+    // 1. Fetch units related to this property
     const units = await this.mongoDb.findAll('units', { propertyId });
 
-    // 3. Collect tenant IDs from leases and units
-    const tenantIdsFromLeases = leases.flatMap((l: any) => [l.tenantId, l.userId]).filter(Boolean);
-    const tenantIdsFromUnits = units.map((u: any) => u.tenantId).filter(Boolean);
+    // 2. Fetch leases related to this property
+    const leases = await this.mongoDb.findAll('leases', { propertyId }, { sort: { startDate: -1 } });
 
-    // 4. Fetch all tenant users or specified tenant IDs
-    let tenants = await this.mongoDb.findAll('users', { role: 'tenant' });
-    const tenantsById = new Map(tenants.map((t: any) => [String(t.id), t]));
+    // 3. Collect tenant IDs strictly belonging to this property
+    const tenantIdsFromUnits = units.map((u: any) => u.tenantId).filter(Boolean);
+    const tenantIdsFromLeases = leases.flatMap((l: any) => [l.tenantId, l.userId]).filter(Boolean);
+
+    const relevantTenantIds = new Set<string>([
+      ...tenantIdsFromUnits.map(String),
+      ...tenantIdsFromLeases.map(String),
+    ]);
+
+    // If no tenants assigned to this property, return empty array
+    if (relevantTenantIds.size === 0) {
+      return [];
+    }
+
+    // 4. Fetch ONLY the tenants assigned to this property
+    const idList = Array.from(relevantTenantIds);
+    const tenants = await this.mongoDb.findAll('users', {
+      id: { $in: idList },
+    });
 
     // Map leases to lease info per tenant
     const leasesByTenantId = new Map<string, any>();
@@ -229,23 +243,22 @@ export class PropertiesService {
       }
     }
 
-    // Build unique tenant list: tenants with leases, tenants with unit assignments, or onboarded tenants
-    const relevantTenantIds = new Set<string>([
-      ...tenantIdsFromLeases.map(String),
-      ...tenantIdsFromUnits.map(String),
-    ]);
-
-    // If no specific property-assigned tenants yet, return all onboarded tenant users so admin can view them
-    const targetTenants = relevantTenantIds.size > 0
-      ? tenants.filter((t: any) => relevantTenantIds.has(String(t.id)))
-      : tenants;
-
-    const result = targetTenants.map((tenant: any) => {
-      const tid = String(tenant.id);
+    const now = new Date();
+    const result = tenants.map((tenant: any) => {
+      const tid = String(tenant.id || tenant._id);
       const lease = leasesByTenantId.get(tid);
       const assignedUnit = unitByTenantId.get(tid);
       const fullname = tenant?.fullname || tenant?.fullName || '';
       const phone = tenant?.phoneNumber || tenant?.phone || '';
+
+      // Accurate lease status: if endDate is in future, it's active
+      let leaseStatus = lease?.status || (assignedUnit ? 'active' : 'pending');
+      if (lease?.endDate) {
+        const endDate = new Date(lease.endDate);
+        if (!isNaN(endDate.getTime())) {
+          leaseStatus = endDate > now ? 'active' : 'expired';
+        }
+      }
 
       return {
         id: tenant.id,
@@ -257,7 +270,7 @@ export class PropertiesService {
         unitNumber: lease?.unitNumber || lease?.unit || assignedUnit || '',
         leaseStart: lease?.startDate ? (new Date(lease.startDate)).toISOString().split('T')[0] : undefined,
         leaseEnd: lease?.endDate ? (new Date(lease.endDate)).toISOString().split('T')[0] : undefined,
-        leaseStatus: lease?.status || (assignedUnit ? 'assigned' : 'pending'),
+        leaseStatus,
       };
     });
 

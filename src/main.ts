@@ -3,6 +3,11 @@ import { ValidationPipe, BadRequestException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import helmet from 'helmet';
 import * as express from 'express';
+import * as dns from 'node:dns';
+
+try {
+  dns.setServers(['8.8.8.8', '8.8.4.4', '1.1.1.1']);
+} catch (e) {}
 import { AppModule } from './app.module';
 import { setupSwagger } from './config/swagger';
 import { join } from 'path';

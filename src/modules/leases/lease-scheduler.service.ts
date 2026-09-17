@@ -107,6 +107,13 @@ export class LeaseSchedulerService {
 
     const updatePromises = leases.map(async (lease) => {
       try {
+        const now = new Date();
+        const end = lease.endDate ? new Date(lease.endDate) : null;
+        if (end && !isNaN(end.getTime()) && end.getTime() > now.getTime()) {
+          this.logger.warn(`Skipping premature expiration for lease ${lease.id}: end date ${lease.endDate} is still in the future`);
+          return;
+        }
+
         // Update lease status to expired
         await this.mongoDb.update(this.collection, lease.id, {
           status: 'expired',
