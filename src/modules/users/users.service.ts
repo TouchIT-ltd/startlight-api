@@ -29,7 +29,7 @@ export class UsersService {
       console.log('No admin found. Seeding default admin...');
       await this.create({
         fullname: 'System Admin',
-        email: process.env.ADMIN_EMAIL || 'dhannunyunus@gmail.com',
+        email: process.env.ADMIN_EMAIL || 'admin@starlight.com',
         password: process.env.ADMIN_PASSWORD || 'AdminPassword123!',
         phoneNumber: '+2340000000000',
         role: 'admin',
@@ -73,15 +73,17 @@ export class UsersService {
       if (creatorRole === 'admin') {
         // No restrictions for admin
       }
-      // Owner can create manager
+      // Owner can create manager or tenant
       else if (creatorRole === 'owner') {
-        if (targetRole !== 'manager') {
-          throw new ConflictException('Owner can only create manager accounts');
+        if (targetRole !== 'manager' && targetRole !== 'tenant') {
+          throw new ConflictException('Owner can only create manager or tenant accounts');
         }
       }
-      // Manager cannot create owner/admin
+      // Manager can create tenant
       else if (creatorRole === 'manager') {
-        throw new ConflictException('Manager cannot create user accounts');
+        if (targetRole !== 'tenant') {
+          throw new ConflictException('Manager can only create tenant accounts');
+        }
       }
       // Tenant cannot create any accounts
       else if (creatorRole === 'tenant') {
@@ -214,18 +216,29 @@ export class UsersService {
 
   async findAll(
     page = 1,
-    limit = 10,
-    filters: { role?: string; isActive?: boolean; propertyId?: string; search?: string } = {},
+    limit = 50,
+    filters: { role?: string; isActive?: any; propertyId?: string; search?: string } = {},
   ): Promise<any> {
-    const skip = (page - 1) * limit;
+    const isUnlimited = limit <= 0;
+    const effectiveLimit = isUnlimited ? 0 : limit;
+    const skip = isUnlimited ? 0 : (page - 1) * limit;
 
     // Build filter query
     const query: any = {};
-    if (filters.role) {
-      query.role = filters.role;
+    if (filters.role && filters.role.trim() !== '') {
+      query.role = filters.role.trim();
     }
-    if (filters.isActive !== undefined) {
-      query.isActive = filters.isActive;
+    if (filters.isActive !== undefined && filters.isActive !== null && (filters.isActive as any) !== '') {
+      if (typeof filters.isActive === 'string') {
+        const lower = (filters.isActive as string).toLowerCase().trim();
+        if (lower === 'true' || lower === '1') {
+          query.isActive = true;
+        } else if (lower === 'false' || lower === '0') {
+          query.isActive = false;
+        }
+      } else {
+        query.isActive = Boolean(filters.isActive);
+      }
     }
 
     if (filters.propertyId) {
@@ -240,7 +253,10 @@ export class UsersService {
       if (tenantIds.size === 0) {
         return { data: [], total: 0, page, totalPages: 0 };
       }
-      query.id = { $in: Array.from(tenantIds) };
+      query.$or = [
+        { id: { $in: Array.from(tenantIds) } },
+        { _id: { $in: Array.from(tenantIds) } },
+      ];
     }
 
     if (filters.search && filters.search.trim()) {
@@ -249,6 +265,7 @@ export class UsersService {
         { fullname: regex },
         { fullName: regex },
         { email: regex },
+        { phoneNumber: regex },
       ];
       if (query.$or) {
         query.$and = [{ $or: query.$or }, { $or: searchOr }];
@@ -258,8 +275,14 @@ export class UsersService {
       }
     }
 
+    const options: any = { sort: { createdAt: -1 } };
+    if (!isUnlimited && effectiveLimit > 0) {
+      options.skip = skip;
+      options.limit = effectiveLimit;
+    }
+
     const [users, total] = await Promise.all([
-      this.mongoDb.findAll(this.collectionName, query, { skip, limit }),
+      this.mongoDb.findAll(this.collectionName, query, options),
       this.mongoDb.count(this.collectionName, query),
     ]);
 
@@ -272,7 +295,7 @@ export class UsersService {
       data: usersWithoutPasswords,
       total,
       page,
-      totalPages: Math.ceil(total / limit),
+      totalPages: isUnlimited ? 1 : Math.ceil(total / (limit || 1)),
     };
   }
 

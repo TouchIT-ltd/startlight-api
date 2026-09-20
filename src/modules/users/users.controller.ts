@@ -102,12 +102,12 @@ export class UsersController {
   }
 
   @Post('admin-create')
-  @Roles(UserRole.ADMIN)
+  @Roles(UserRole.ADMIN, UserRole.MANAGER, UserRole.OWNER)
   @ApiBearerAuth()
-  @ApiTags('Admin Portal')
+  @ApiTags('Admin Portal', 'Manager Portal', 'Owner Portal')
   @ApiOperation({
-    summary: 'Admin: Create a new user with auto-password',
-    description: 'Access: ADMIN only - Generate temporary password and send via email'
+    summary: 'Admin/Manager/Owner: Create a user account',
+    description: 'Access: ADMIN (all roles), OWNER (manager/tenant), MANAGER (tenant only)'
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -182,18 +182,18 @@ export class UsersController {
     summary: 'Get all users with filtering',
     description: 'Access: ADMIN only - List all users with optional filtering'
   })
-  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Items per page (default: 50, set 0 for all)' })
   @ApiQuery({ name: 'role', required: false, enum: UserRole, description: 'Filter by user role' })
   @ApiQuery({ name: 'isActive', required: false, type: Boolean, description: 'Filter by active status' })
   @ApiQuery({ name: 'propertyId', required: false, type: String, description: 'Filter tenants by property ID' })
-  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search users by name or email' })
+  @ApiQuery({ name: 'search', required: false, type: String, description: 'Search users by name, email, or phone' })
   @ApiResponse({ status: 200, description: 'List of users' })
   async findAll(
     @Query('page', new DefaultValuePipe(1), ParseIntPipe) page: number = 1,
-    @Query('limit', new DefaultValuePipe(10), ParseIntPipe) limit: number = 10,
+    @Query('limit', new DefaultValuePipe(50), ParseIntPipe) limit: number = 50,
     @Query('role') role?: UserRole,
-    @Query('isActive') isActive?: boolean,
+    @Query('isActive') isActive?: any,
     @Query('propertyId') propertyId?: string,
     @Query('search') search?: string,
   ) {
