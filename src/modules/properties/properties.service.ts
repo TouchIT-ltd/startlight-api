@@ -221,9 +221,16 @@ export class PropertiesService {
       ...tenantIdsFromLeases.map(String),
     ]);
 
-    // If no tenants assigned to this property, return empty array
+    // If no tenants assigned to this property, throw error
     if (relevantTenantIds.size === 0) {
-      return [];
+      if (units.length === 0) {
+        throw new NotFoundException(
+          `No units or tenants found for property with ID ${propertyId}. Please create units and assign tenants.`,
+        );
+      }
+      throw new NotFoundException(
+        `No tenants assigned to any units in property with ID ${propertyId}.`,
+      );
     }
 
     // 4. Fetch ONLY the tenants assigned to this property
@@ -236,6 +243,12 @@ export class PropertiesService {
       ],
     };
     const tenants = await this.mongoDb.findAll('users', userQuery);
+
+    if (!tenants || tenants.length === 0) {
+      throw new NotFoundException(
+        `No tenant accounts found matching the assigned IDs for property with ID ${propertyId}.`,
+      );
+    }
 
     // Map leases to lease info per tenant
     const leasesByTenantId = new Map<string, any>();
