@@ -200,6 +200,12 @@ export class PropertiesService {
   async getTenants(propertyId: string) {
     if (!propertyId) return [];
 
+    // Check if property exists
+    const property = await this.mongoDb.findOne(this.collection, propertyId);
+    if (!property) {
+      throw new NotFoundException(`Property with ID ${propertyId} not found`);
+    }
+
     // 1. Fetch units related to this property
     const units = await this.mongoDb.findAll('units', { propertyId });
 
@@ -222,9 +228,14 @@ export class PropertiesService {
 
     // 4. Fetch ONLY the tenants assigned to this property
     const idList = Array.from(relevantTenantIds);
-    const tenants = await this.mongoDb.findAll('users', {
-      id: { $in: idList },
-    });
+    const objectIds = idList.filter(id => /^[0-9a-fA-F]{24}$/.test(id));
+    const userQuery: any = {
+      $or: [
+        { id: { $in: idList } },
+        ...(objectIds.length > 0 ? [{ _id: { $in: objectIds } }] : []),
+      ],
+    };
+    const tenants = await this.mongoDb.findAll('users', userQuery);
 
     // Map leases to lease info per tenant
     const leasesByTenantId = new Map<string, any>();
