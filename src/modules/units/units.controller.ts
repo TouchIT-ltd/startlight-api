@@ -11,6 +11,7 @@ import {
   UseGuards,
   UseInterceptors,
   UploadedFiles,
+  Logger,
 } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
@@ -38,6 +39,8 @@ import {
 @Controller('units')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class UnitsController {
+  private readonly logger = new Logger(UnitsController.name);
+
   constructor(private readonly unitsService: UnitsService) { }
 
   @Post()
@@ -98,6 +101,10 @@ export class UnitsController {
     @Body() createUnitDto: CreateUnitDto,
     @UploadedFiles() files: Array<Express.Multer.File>,
   ) {
+    this.logger.log(`[POST /units] Received create unit payload: ${JSON.stringify(createUnitDto, null, 2)}`);
+    if (files?.length) {
+      this.logger.log(`[POST /units] Attached files (${files.length}): ${files.map(f => f.originalname).join(', ')}`);
+    }
     return this.unitsService.create(createUnitDto, files);
   }
 
@@ -237,6 +244,7 @@ export class UnitsController {
     type: UnitResponseDto,
   })
   async update(@Param('id') id: string, @Body() updateUnitDto: CreateUnitDto) {
+    this.logger.log(`[PUT /units/${id}] Received update unit payload: ${JSON.stringify(updateUnitDto, null, 2)}`);
     return this.unitsService.update(id, updateUnitDto);
   }
 
