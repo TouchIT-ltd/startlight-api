@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
 import { MongoDatabaseService } from '../../shared/database/mongo-database.service';
 import { AuditLogsService } from '../audit-logs/audit-logs.service';
 import { CloudinaryService } from '../../shared/services/cloudinary.service';
@@ -6,6 +6,7 @@ import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class UnitsService {
+  private readonly logger = new Logger(UnitsService.name);
   private readonly collection = 'units';
 
   constructor(
@@ -16,7 +17,7 @@ export class UnitsService {
   ) { }
 
   async create(data: any, files?: Array<Express.Multer.File>): Promise<any> {
-    console.log('Creating unit with data:', data);
+    this.logger.log(`[CREATE UNIT] Creating unit with payload: ${JSON.stringify(data, null, 2)}`);
 
     // Mandate file upload
     if (!files || files.length === 0) {
@@ -48,6 +49,7 @@ export class UnitsService {
     }
 
     if (data.tenantId) {
+      this.logger.log(`[TENANT ASSIGNMENT] Assigning tenant ${data.tenantId} to unit ${data.unitNumber} on property ${data.propertyId}`);
       data.status = 'occupied';
     }
 
@@ -252,10 +254,11 @@ export class UnitsService {
     }
 
     if (data.tenantId) {
+      this.logger.log(`[TENANT ASSIGNMENT] Assigning tenant ${data.tenantId} to existing unit ${id} (${data.unitNumber || existing.unitNumber})`);
       data.status = 'occupied';
     }
 
-    console.log('Updating unit with data:', data);
+    this.logger.log(`[UPDATE UNIT] Updating unit ${id} with payload: ${JSON.stringify(data, null, 2)}`);
 
     const updated = await this.mongoDb.update(this.collection, id, data);
 
@@ -278,6 +281,8 @@ export class UnitsService {
         end.setMonth(end.getMonth() + months);
         const endDate = end.toISOString().split('T')[0];
 
+        this.logger.log(`[TENANT ASSIGNMENT] Creating new lease for tenant ${data.tenantId} (Unit: ${data.unitNumber || existing.unitNumber}, Property: ${existing.propertyId})`);
+
         await this.mongoDb.create('leases', {
           tenantId: data.tenantId,
           userId: data.tenantId,
@@ -290,6 +295,7 @@ export class UnitsService {
           createdAt: new Date(),
         });
       } else {
+        this.logger.log(`[TENANT ASSIGNMENT] Updating existing lease ${existingLease.id} for tenant ${data.tenantId}`);
         await this.mongoDb.update('leases', existingLease.id, {
           status: 'active',
           rentAmount: data.price || existing.price || existingLease.rentAmount,
