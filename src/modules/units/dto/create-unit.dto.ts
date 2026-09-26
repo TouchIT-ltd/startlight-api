@@ -1,4 +1,4 @@
-import { IsString, IsNumber, IsIn, IsOptional, Min } from 'class-validator';
+import { IsString, IsNumber, IsIn, IsOptional, Min, IsArray } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -109,5 +109,21 @@ export class CreateUnitDto {
     type: [String],
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (!value) return [];
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value);
+      } catch {
+        return value
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean);
+      }
+    }
+    return Array.isArray(value) ? value : [];
+  })
+  @IsArray()
+  @IsString({ each: true })
   amenities?: string[];
 }
